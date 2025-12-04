@@ -1,0 +1,153 @@
+# Configuration file for HEXA FEM Topology Optimization, controlling geometry, material, optimization goals, and solver hyperparameters.
+
+  # Domain dimension in the X direction (meters).
+  # Domain dimension in the Y direction (meters).
+  # Domain dimension in the Z direction (meters).
+  # Target total number of elements. The mesh generator calculates N_x, N_y, N_z based on dimension ratios.
+  # Shapes define fixed regions (void or solid) that are excluded from optimization.
+geometry:
+  length_x: 60 # Domain dimension in the X direction (meters).
+  length_y: 20 # Domain dimension in the Y direction (meters).
+  length_z: 20 # Domain dimension in the Z direction (meters).
+  target_elem_count: 200000 # Target total number of elements. The mesh generator calculates N_x, N_y, N_z based on dimension ratios.
+  shape_notes: Shapes define fixed regions (void or solid) that are excluded from optimization.
+  sphere1:
+    # Geometric type: 'sphere' or 'box'.
+    type: sphere
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 12.510000228881836
+      - 18.41960906982422
+      - -12.126373291015625
+    # Diameter of the sphere.
+    diameter: 8
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: remove
+  sphere2:
+    # Geometric type: 'sphere' or 'box'.
+    type: sphere
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 60.381900787353516
+      - -0.06934642046689987
+      - 9.764435768127441
+    # Diameter of the sphere.
+    diameter: 4
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: add
+  sphere3:
+    # Geometric type: 'sphere' or 'box'.
+    type: sphere
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 34.29201126098633
+      - 5
+      - 2.426476240158081
+    # Diameter of the sphere.
+    diameter: 4
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: remove
+  box2:
+    # Geometric type: 'sphere' or 'box'.
+    type: box
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 45.06150817871094
+      - 8.946874618530273
+      - 1.094521164894104
+    # Side length of the cube/box.
+    side: 4
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: remove
+  box1:
+    # Geometric type: 'sphere' or 'box'.
+    type: box
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 28
+      - 7
+      - -9.611063003540039
+    # Side length of the cube/box.
+    side: 2
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: add
+
+# Defines fixed displacement constraints on nodes matching the location criteria.
+boundary_conditions:
+  - location:
+      - 0
+      - ':'
+      - ':'
+    # Constrained Degrees of Freedom: 1=X translation, 2=Y translation, 3=Z translation.
+    DoFs:
+      - 1
+      - 2
+      - 3
+
+# Defines concentrated forces applied to nodes matching the location criteria.
+external_forces:
+  - location:
+      - 1
+      - 0
+      - 0
+    # Force vector [Fx, Fy, Fz] (applied as total force, distributed if using 'location').
+    F:
+      - 0
+      - 10
+      - 0
+  - location:
+      - 1
+      - 0
+      - 0.5
+    # Force vector [Fx, Fy, Fz] (applied as total force, distributed if using 'location').
+    F:
+      - 0
+      - 0
+      - -10
+  - location:
+      - 1
+      - 0
+      - 1
+    # Force vector [Fx, Fy, Fz] (applied as total force, distributed if using 'location').
+    F:
+      - 0
+      - 20
+      - 0
+  - location:
+      - .5
+      - 0
+      - .5
+    # Force vector [Fx, Fy, Fz] (applied as total force, distributed if using 'location').
+    F:
+      - 0
+      - 20
+      - 0
+# Base material properties for solid elements.
+material:
+  E: 1 # Young's Modulus (base value).
+  nu: 0.3 # Poisson's Ratio.
+number_of_iterations: 100
+l1_stress_allowable: 1.9
+
+# Parameters related to the SIMP and density update rule.
+optimization_parameters:
+  min_density: 0.0001 # Minimum allowable element density (rho_min). Higher values increase stability but introduce 'gray' elements. Recommended: 0.001 to 0.01.
+  max_density_initial_add: 10 # Initial density for 'add' shapes (controls initial fixed stiffness). Typically >= 1.0.
+  density_clamp_max: 1 # Maximum value for element density. Usually 1.0.
+  filter_R_init_perc: 1
+  filter_R_interm_perc: 1
+  filter_R_final_perc: .1
+  filter_R_interm_iter_perc: 80
+  filter_radius: 0
+output_settings:
+  export_frequency: 1
+  log_filename: simulation_log.txt
+
+# Parameters for selecting the solver type, tolerance, and numerical stability tuning.
+solver_parameters:
+  solver_type: gpu # Solver type: 'direct' (small problems), 'matrix_free' (CPU iterative), or 'gpu' (GPU iterative).
+  tolerance: 1.e-7 # CG/Krylov solver convergence tolerance (Relative Residual Norm). Recommended 1e-6 or lower.
+  max_iterations: 40000 # Maximum number of iterations allowed for the chosen iterative solver (CG/Krylov).
+  diagonal_shift_factor: 1.e-7 # Regularization factor (delta) applied as a fraction of max diagonal element. Critical for ill-conditioned matrices. Recommended 1e-6 to 1e-4.
+  gpu_method: krylov # If solver_type is 'gpu': 'native' (CUDA CG) or 'krylov' (Krylov.jl wrapper).
+  krylov_solver: cg # If gpu_method is 'krylov': Specify algorithm: 'cg', 'minres', or 'bicgstab'.

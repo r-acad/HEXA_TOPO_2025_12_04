@@ -1,0 +1,29 @@
+name = "HEXA_TopOpt"
+uuid = "a1b2c3d4-e5f6-4a5b-9c8d-7e6f5g4h3i2j"
+authors = ["User"]
+version = "1.0.0"
+
+[deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+Krylov = "ba0b0d4f-ebba-5204-a429-3ac8ea3da619"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LinearOperators = "5c8ed15e-5a4c-59e4-a42b-c7e88c0c7881"
+MarchingCubes = "2e796c63-4217-5727-88f5-467406a0665f"
+Printf = "de0858da-6303-5e67-8744-51ed9e525090"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+SuiteSparse = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
+YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
+
+[compat]
+CUDA = "5.0"
+JSON = "0.21"
+JSON3 = "1.13"
+Krylov = "0.9"
+LinearOperators = "2.0"
+MarchingCubes = "0.1"
+YAML = "0.4"
+julia = "1.9"

@@ -1,0 +1,4237 @@
+"// # FILE: .\Project.toml";
+name = "HEXA_TopOpt"
+uuid = "a1b2c3d4-e5f6-4a5b-9c8d-7e6f5g4h3i2j"
+authors = ["User"]
+version = "1.0.0"
+
+[deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+Krylov = "ba0b0d4f-ebba-5204-a429-3ac8ea3da619"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LinearOperators = "5c8ed15e-5a4c-59e4-a42b-c7e88c0c7881"
+MarchingCubes = "2e796c63-4217-5727-88f5-467406a0665f"
+Printf = "de0858da-6303-5e67-8744-51ed9e525090"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+SuiteSparse = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
+YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
+
+[compat]
+CUDA = "5.0"
+JSON = "0.21"
+JSON3 = "1.13"
+Krylov = "0.9"
+LinearOperators = "2.0"
+MarchingCubes = "0.1"
+YAML = "0.4"
+julia = "1.9"
+"// # FILE: .\configs\default.yaml";
+# Configuration file for HEXA FEM Topology Optimization, controlling geometry, material, optimization goals, and solver hyperparameters.
+
+  # Domain dimension in the X direction (meters).
+  # Domain dimension in the Y direction (meters).
+  # Domain dimension in the Z direction (meters).
+  # Target total number of elements. The mesh generator calculates N_x, N_y, N_z based on dimension ratios.
+  # Shapes define fixed regions (void or solid) that are excluded from optimization.
+geometry:
+  length_x: 60 # Domain dimension in the X direction (meters).
+  length_y: 20 # Domain dimension in the Y direction (meters).
+  length_z: 20 # Domain dimension in the Z direction (meters).
+  target_elem_count: 200000 # Target total number of elements. The mesh generator calculates N_x, N_y, N_z based on dimension ratios.
+  shape_notes: Shapes define fixed regions (void or solid) that are excluded from optimization.
+  sphere1:
+    # Geometric type: 'sphere' or 'box'.
+    type: sphere
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 12.510000228881836
+      - 18.41960906982422
+      - -12.126373291015625
+    # Diameter of the sphere.
+    diameter: 8
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: remove
+  sphere2:
+    # Geometric type: 'sphere' or 'box'.
+    type: sphere
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 60.381900787353516
+      - -0.06934642046689987
+      - 9.764435768127441
+    # Diameter of the sphere.
+    diameter: 4
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: add
+  sphere3:
+    # Geometric type: 'sphere' or 'box'.
+    type: sphere
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 34.29201126098633
+      - 5
+      - 2.426476240158081
+    # Diameter of the sphere.
+    diameter: 4
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: remove
+  box2:
+    # Geometric type: 'sphere' or 'box'.
+    type: box
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 45.06150817871094
+      - 8.946874618530273
+      - 1.094521164894104
+    # Side length of the cube/box.
+    side: 4
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: remove
+  box1:
+    # Geometric type: 'sphere' or 'box'.
+    type: box
+    # [X, Y, Z] coordinate of the shape center.
+    center:
+      - 28
+      - 7
+      - -9.611063003540039
+    # Side length of the cube/box.
+    side: 2
+    # Fixed density type: 'remove' (min_density) or 'add' (max_density_initial_add).
+    action: add
+
+# Defines fixed displacement constraints on nodes matching the location criteria.
+boundary_conditions:
+  - location:
+      - 0
+      - ':'
+      - ':'
+    # Constrained Degrees of Freedom: 1=X translation, 2=Y translation, 3=Z translation.
+    DoFs:
+      - 1
+      - 2
+      - 3
+
+# Defines concentrated forces applied to nodes matching the location criteria.
+external_forces:
+  - location:
+      - 1
+      - 0
+      - 0
+    # Force vector [Fx, Fy, Fz] (applied as total force, distributed if using 'location').
+    F:
+      - 0
+      - 10
+      - 0
+  - location:
+      - 1
+      - 0
+      - 0.5
+    # Force vector [Fx, Fy, Fz] (applied as total force, distributed if using 'location').
+    F:
+      - 0
+      - 0
+      - -10
+  - location:
+      - 1
+      - 0
+      - 1
+    # Force vector [Fx, Fy, Fz] (applied as total force, distributed if using 'location').
+    F:
+      - 0
+      - 20
+      - 0
+  - location:
+      - .5
+      - 0
+      - .5
+    # Force vector [Fx, Fy, Fz] (applied as total force, distributed if using 'location').
+    F:
+      - 0
+      - 20
+      - 0
+# Base material properties for solid elements.
+material:
+  E: 1 # Young's Modulus (base value).
+  nu: 0.3 # Poisson's Ratio.
+number_of_iterations: 100
+l1_stress_allowable: 1.9
+
+# Parameters related to the SIMP and density update rule.
+optimization_parameters:
+  min_density: 0.0001 # Minimum allowable element density (rho_min). Higher values increase stability but introduce 'gray' elements. Recommended: 0.001 to 0.01.
+  max_density_initial_add: 10 # Initial density for 'add' shapes (controls initial fixed stiffness). Typically >= 1.0.
+  density_clamp_max: 1 # Maximum value for element density. Usually 1.0.
+  filter_R_init_perc: 1
+  filter_R_interm_perc: 1
+  filter_R_final_perc: .1
+  filter_R_interm_iter_perc: 80
+  filter_radius: 0
+output_settings:
+  export_frequency: 1
+  log_filename: simulation_log.txt
+
+# Parameters for selecting the solver type, tolerance, and numerical stability tuning.
+solver_parameters:
+  solver_type: gpu # Solver type: 'direct' (small problems), 'matrix_free' (CPU iterative), or 'gpu' (GPU iterative).
+  tolerance: 1.e-7 # CG/Krylov solver convergence tolerance (Relative Residual Norm). Recommended 1e-6 or lower.
+  max_iterations: 40000 # Maximum number of iterations allowed for the chosen iterative solver (CG/Krylov).
+  diagonal_shift_factor: 1.e-7 # Regularization factor (delta) applied as a fraction of max diagonal element. Critical for ill-conditioned matrices. Recommended 1e-6 to 1e-4.
+  gpu_method: krylov # If solver_type is 'gpu': 'native' (CUDA CG) or 'krylov' (Krylov.jl wrapper).
+  krylov_solver: cg # If gpu_method is 'krylov': Specify algorithm: 'cg', 'minres', or 'bicgstab'.
+"// # FILE: .\src\Main.jl";
+println(">>> SCRIPT START: Loading Modules...")
+
+module HEXA
+
+using LinearAlgebra
+using SparseArrays
+using Printf
+using Base.Threads
+using JSON
+using Dates
+using Statistics 
+using CUDA
+using YAML
+
+
+include("Utils/Diagnostics.jl")
+include("Utils/Helpers.jl")
+
+using .Diagnostics
+using .Helpers
+
+
+include("Core/Element.jl")
+include("Core/Boundary.jl")
+include("Core/Stress.jl")
+
+using .Element
+using .Boundary
+using .Stress
+
+
+include("Mesh/Mesh.jl")
+include("Mesh/MeshUtilities.jl")
+include("Mesh/MeshPruner.jl") 
+include("Mesh/MeshRefiner.jl") 
+include("Mesh/MeshShapeProcessing.jl")
+
+using .Mesh
+using .MeshUtilities
+using .MeshPruner 
+using .MeshRefiner 
+using .MeshShapeProcessing
+
+
+include("Solvers/CPUSolver.jl")
+include("Solvers/GPUSolver.jl")
+include("Solvers/DirectSolver.jl")
+include("Solvers/IterativeSolver.jl")
+include("Solvers/Solver.jl") # Main Dispatcher
+
+using .CPUSolver
+using .GPUSolver
+using .DirectSolver
+using .IterativeSolver
+using .Solver
+
+
+include("IO/Configuration.jl")
+include("IO/ExportVTK.jl")
+include("IO/Postprocessing.jl")
+include("Optimization/TopOpt.jl") 
+
+using .Configuration
+using .ExportVTK
+using .Postprocessing
+using .TopologyOptimization 
+
+function __init__()
+    Diagnostics.log_status("HEXA Finite Element Solver initialized")
+    Helpers.clear_gpu_memory()
+end
+
+function run_main(config_file=nothing)
+    try
+        _run_safe(config_file)
+    catch e
+        println("\n" * "!"^60)
+        println("!!! FATAL ERROR DETECTED !!!")
+        println("!"^60)
+        showerror(stderr, e, catch_backtrace())
+        
+        open("crash_log.txt", "w") do io
+            write(io, "Fatal Error at $(now())\n")
+            showerror(io, e, catch_backtrace())
+        end
+        println("\nError details written to 'crash_log.txt'.")
+    end
+end
+
+function _run_safe(config_file)
+    
+    if config_file === nothing
+        
+        config_file = joinpath(@__DIR__, "..", "configs", "default.yaml")
+    end
+    
+    println("Loading configuration from: $config_file")
+    if !isfile(config_file)
+        error("Configuration file not found: $config_file")
+    end
+
+    config = load_configuration(config_file)
+    
+    
+    out_settings = get(config, "output_settings", Dict())
+    export_freq = get(out_settings, "export_frequency", 5)
+    log_filename = get(out_settings, "log_filename", "results/simulation_log.txt")
+    
+    mkpath(dirname(log_filename))
+    Diagnostics.init_log_file(log_filename, config)
+
+    
+    geom = setup_geometry(config)
+    
+    
+    nodes, elements, dims = generate_mesh(
+        geom.nElem_x, geom.nElem_y, geom.nElem_z;
+        dx = geom.dx, dy = geom.dy, dz = geom.dz
+    )
+    
+    initial_target_count = size(elements, 1)
+    println(">> Initial Target Active Elements: $initial_target_count")
+
+    domain_bounds = (
+        min_pt = [0.0f0, 0.0f0, 0.0f0],
+        len_x = geom.dx * geom.nElem_x,
+        len_y = geom.dy * geom.nElem_y,
+        len_z = geom.dz * geom.nElem_z
+    )
+
+    current_dx = geom.dx
+    current_dy = geom.dy
+    current_dz = geom.dz
+    
+    
+    config["geometry"]["nElem_x_computed"] = geom.nElem_x
+    config["geometry"]["nElem_y_computed"] = geom.nElem_y
+    config["geometry"]["nElem_z_computed"] = geom.nElem_z
+    config["geometry"]["dx_computed"] = current_dx
+    config["geometry"]["dy_computed"] = current_dy
+    config["geometry"]["dz_computed"] = current_dz
+    config["geometry"]["max_domain_dim"] = geom.max_domain_dim
+    
+    nNodes = size(nodes, 1)
+    
+    bc_data = config["boundary_conditions"]
+    bc_indicator = get_bc_indicator(nNodes, nodes, Vector{Any}(bc_data))
+    
+    E = Float32(config["material"]["E"])
+    nu = Float32(config["material"]["nu"])
+    
+    ndof = nNodes * 3
+    F = zeros(Float32, ndof)
+    forces_data = config["external_forces"]
+    apply_external_forces!(F, Vector{Any}(forces_data), nodes, elements)
+    
+    
+    density, original_density, protected_elements_mask = 
+        initialize_density_field(nodes, elements, geom.shapes_to_add, geom.shapes_to_remove, config)
+    
+    opt_params = config["optimization_parameters"]
+    min_density = Float32(get(opt_params, "min_density", 1.0e-3))
+    max_density_clamp = Float32(get(opt_params, "density_clamp_max", 1.0))
+
+    base_name = splitext(basename(config_file))[1]
+    RESULTS_DIR = "results"
+    mkpath(RESULTS_DIR)
+    
+    number_of_iterations = get(config, "number_of_iterations", 0)
+    l1_stress_allowable = Float32(get(config, "l1_stress_allowable", 1.0))
+    if l1_stress_allowable == 0.0f0; l1_stress_allowable = 1.0f0; end
+
+    U_full = zeros(Float32, ndof)
+    
+    max_change = 1.0f0
+    filter_R = 0.0f0
+    curr_threshold = 0.0f0
+    
+    iter = 1
+    keep_running = true
+    is_annealing = false
+    max_annealing_iters = 100 
+    convergence_threshold = 0.01 
+
+    max_gpu_elems = Helpers.get_max_feasible_elements()
+    
+    
+    while keep_running
+        iter_start_time = time()
+        refine_status = "No"
+        
+        active_count = count(d -> d > min_density * 1.1, density)
+        is_too_coarse = active_count < (initial_target_count * 0.6)
+        fits_in_gpu = (active_count * 4) < max_gpu_elems
+        
+        
+        should_refine = (iter > 5) && (!is_annealing) && is_too_coarse && fits_in_gpu
+        
+        if should_refine
+            refine_status = "YES"
+            nodes, elements, density, dims = MeshRefiner.refine_mesh_and_fields(
+                nodes, elements, density, dims, initial_target_count, domain_bounds
+            )
+            GC.gc()
+            
+            nElem_x_new, nElem_y_new, nElem_z_new = dims[1]-1, dims[2]-1, dims[3]-1
+            current_dx = domain_bounds.len_x / nElem_x_new
+            current_dy = domain_bounds.len_y / nElem_y_new
+            current_dz = domain_bounds.len_z / nElem_z_new
+            
+            config["geometry"]["nElem_x_computed"] = nElem_x_new
+            config["geometry"]["nElem_y_computed"] = nElem_y_new
+            config["geometry"]["nElem_z_computed"] = nElem_z_new
+            config["geometry"]["dx_computed"] = current_dx
+            config["geometry"]["dy_computed"] = current_dy
+            config["geometry"]["dz_computed"] = current_dz
+            
+            geom = (
+                nElem_x = nElem_x_new, nElem_y = nElem_y_new, nElem_z = nElem_z_new,
+                dx = current_dx, dy = current_dy, dz = current_dz,
+                shapes_to_add = geom.shapes_to_add, shapes_to_remove = geom.shapes_to_remove,
+                actual_elem_count = size(elements, 1),
+                max_domain_dim = geom.max_domain_dim
+            )
+
+            nNodes = size(nodes, 1)
+            ndof = nNodes * 3
+            bc_indicator = get_bc_indicator(nNodes, nodes, Vector{Any}(bc_data))
+            F = zeros(Float32, ndof)
+            apply_external_forces!(F, Vector{Any}(forces_data), nodes, elements)
+            
+            _, original_density, protected_elements_mask = 
+                initialize_density_field(nodes, elements, geom.shapes_to_add, geom.shapes_to_remove, config)
+            
+            U_full = zeros(Float32, ndof)
+            TopologyOptimization.reset_filter_cache!()
+            GC.gc()
+        end
+
+        if number_of_iterations > 0 && iter > number_of_iterations
+            is_annealing = true
+            annealing_idx = iter - number_of_iterations
+            if annealing_idx > max_annealing_iters
+                Diagnostics.log_status("Max annealing iterations reached.")
+                break
+            end
+        end
+
+        if iter > 1
+            Threads.@threads for e in 1:size(elements, 1)
+                if protected_elements_mask[e]
+                    density[e] = original_density[e]
+                end
+            end
+        end
+
+        
+        U_full = Solver.solve_system(
+            nodes, elements, E, nu, bc_indicator, F;
+            density=density,
+            config=config,
+            min_stiffness_threshold=min_density,
+            prune_voids=true 
+        )
+        
+        compliance = dot(F, U_full)
+        strain_energy = 0.5 * compliance
+        
+        principal_field, vonmises_field, full_stress_voigt, l1_stress_norm_field =
+            compute_stress_field(nodes, elements, U_full, E, nu, density)
+        
+        avg_l1_stress = mean(l1_stress_norm_field)
+        
+        vol_total = length(density)
+        active_non_soft = count(d -> d > min_density, density)
+        vol_frac = sum(density) / vol_total
+        
+        
+
+        if number_of_iterations > 0
+            res_tuple = update_density!(
+                density, l1_stress_norm_field, protected_elements_mask,
+                E, l1_stress_allowable, iter, number_of_iterations,
+                original_density,
+                min_density, max_density_clamp,
+                config,
+                is_annealing
+            )
+            max_change = res_tuple[1]
+            filter_R = res_tuple[2]
+            curr_threshold = res_tuple[3]
+        end
+        
+        iter_time = time() - iter_start_time
+
+        cur_dims_str = "$(config["geometry"]["nElem_x_computed"])x$(config["geometry"]["nElem_y_computed"])x$(config["geometry"]["nElem_z_computed"])"
+        
+        Diagnostics.write_iteration_log(
+            log_filename, iter, cur_dims_str, vol_total, active_non_soft, 
+            filter_R, curr_threshold, 
+            compliance, strain_energy, avg_l1_stress, vol_frac, max_change, 
+            refine_status, iter_time
+        )
+
+        should_export = (iter == 1) || (iter % export_freq == 0) || is_annealing
+        
+        if should_export
+            export_iteration_results(
+                iter, base_name, RESULTS_DIR, nodes, elements,
+                U_full, F, bc_indicator, principal_field,
+                vonmises_field, full_stress_voigt,
+                l1_stress_norm_field, density, E,
+                geom 
+            )
+        end
+        
+        if is_annealing && max_change < convergence_threshold
+            Diagnostics.log_status("CONVERGED: Change < 1.0%")
+            keep_running = false
+        elseif number_of_iterations == 0
+             keep_running = false
+        end
+
+        if CUDA.functional()
+            Helpers.clear_gpu_memory()
+        end
+        
+        iter += 1
+        GC.gc() 
+    end
+
+    Diagnostics.log_status("Finished.")
+    return nothing
+end
+
+end 
+
+using .HEXA
+
+
+if length(ARGS) > 0 && isfile(ARGS[1])
+    println(">>> Using provided config: $(ARGS[1])")
+    HEXA.run_main(ARGS[1])
+else
+    
+    default_config = joinpath(@__DIR__, "..", "configs", "default.yaml")
+    if isfile(default_config)
+        println(">>> Using default config: $default_config")
+        HEXA.run_main(default_config)
+    else
+        println("\n!!! ERROR: No config file provided and default not found.")
+        println("Usage: julia src/Main.jl path/to/config.yaml")
+    end
+end
+"// # FILE: .\src\Core\Boundary.jl";
+module Boundary 
+
+using JSON 
+using SparseArrays 
+using LinearAlgebra 
+
+export get_bc_indicator, reduce_system, apply_external_forces! 
+
+""" 
+    get_affected_nodes(spec, nodes) 
+
+Returns an array of *final* node indices affected by this BC specification `spec`. 
+`spec` can have: 
+  - "node" => a direct 1-based node index (or array of indices) 
+  - "location" => a 3-element array describing x, y, z selection.
+""" 
+function get_affected_nodes(spec::AbstractDict, nodes::Matrix{Float32}) 
+      
+    nNodes = size(nodes, 1) 
+
+    # 1) If user gave "node" 
+    if haskey(spec, "node") 
+        raw = spec["node"] 
+        if isa(raw, Integer) 
+            idx = clamp(raw, 1, nNodes) 
+            return [idx] 
+        elseif isa(raw, AbstractVector) 
+            node_list = Int[] 
+            for r in raw 
+                push!(node_list, clamp(r, 1, nNodes)) 
+            end 
+            return unique(node_list) 
+        else 
+            error("'node' must be an integer or an array of integers") 
+        end 
+    end 
+
+    # 2) If user gave "location" 
+    if haskey(spec, "location") 
+        loc_array = spec["location"] 
+        if length(loc_array) < 3 
+            error("Location specification must have at least 3 components (x,y,z)") 
+        end 
+        return get_nodes_by_location(loc_array, nodes) 
+    end 
+
+    error("Specification must include either 'node' or 'location'") 
+end 
+
+""" 
+    get_nodes_by_location(loc_array, nodes) 
+
+Find nodes whose (x,y,z) coordinates match the "location" pattern. 
+""" 
+function get_nodes_by_location(loc_array::AbstractVector, nodes::Matrix{Float32}) 
+    xvals = @view nodes[:, 1] 
+    yvals = @view nodes[:, 2] 
+    zvals = @view nodes[:, 3] 
+
+    xmin, xmax = extrema(xvals) 
+    ymin, ymax = extrema(yvals) 
+    zmin, zmax = extrema(zvals) 
+
+    xspec = loc_array[1] 
+    yspec = loc_array[2] 
+    zspec = loc_array[3] 
+
+    xmask = interpret_location_component(xspec, xvals, xmin, xmax) 
+    ymask = interpret_location_component(yspec, yvals, ymin, ymax) 
+    zmask = interpret_location_component(zspec, zvals, zmin, zmax) 
+
+    return findall(xmask .& ymask .& zmask) 
+end 
+
+""" 
+    interpret_location_component(spec, coords, cmin, cmax) 
+
+Returns a Bool array indicating which nodes match 'spec' in this dimension. 
+""" 
+function interpret_location_component(spec, 
+                                      coords::AbstractVector{Float32}, 
+                                      cmin::Float32, cmax::Float32) 
+    nNodes = length(coords) 
+    mask = falses(nNodes) 
+      
+    
+    tol = Float32(1e-4) * max(Float32(1.0), abs(cmax - cmin)) 
+
+    if spec == ":" 
+        return trues(nNodes) 
+          
+    elseif isa(spec, Number) 
+        val = resolve_coordinate_value(spec, cmin, cmax)
+          
+        @inbounds for i in 1:nNodes 
+            if abs(coords[i] - val) <= tol 
+                mask[i] = true 
+            end 
+        end 
+
+    elseif isa(spec, String) && endswith(spec, "%") 
+        # e.g. "50%" => fraction 0.5 
+        frac = parse(Float32, replace(spec, "%"=>"")) / Float32(100.0) 
+        frac = clamp(frac, Float32(0.0), Float32(1.0)) 
+        val = Float32(cmin + frac*(cmax - cmin)) 
+          
+        @inbounds for i in 1:nNodes 
+            if abs(coords[i] - val) <= tol 
+                mask[i] = true 
+            end 
+        end 
+          
+    else 
+        error("Invalid location component: $spec") 
+    end 
+
+    return mask 
+end 
+
+"""
+    resolve_coordinate_value(spec, cmin, cmax)
+
+Helper to convert a spec (number or percentage) into an absolute float coordinate.
+"""
+function resolve_coordinate_value(spec, cmin::Float32, cmax::Float32)
+    if isa(spec, Number)
+        # If the number is between 0 and 1, assume it's a normalized coordinate? 
+        # The logic here assumes if it's explicitly a float 0.0-1.0 it might be a ratio, 
+        
+        
+        # If it's a string with %, it's relative. If it's a number, it's absolute.
+        
+        if spec >= Float32(0.0) && spec <= Float32(1.0) 
+            return Float32(cmin + spec*(cmax - cmin)) 
+        else 
+            return Float32(spec) 
+        end
+    elseif isa(spec, String) && endswith(spec, "%")
+        frac = parse(Float32, replace(spec, "%"=>"")) / Float32(100.0) 
+        frac = clamp(frac, Float32(0.0), Float32(1.0)) 
+        return Float32(cmin + frac*(cmax - cmin))
+    end
+    return Float32(cmin) 
+end
+
+""" 
+    get_bc_indicator(nNodes, nodes, bc_data; T=Float32) 
+
+Generates an (nNodes x 3) matrix with 1.0 where a boundary condition is applied.
+""" 
+function get_bc_indicator(nNodes::Int, 
+                          nodes::Matrix{Float32}, 
+                          bc_data::Vector{Any};  
+                          T::Type{<:AbstractFloat} = Float32) 
+
+    bc_indicator = zeros(T, nNodes, 3) 
+      
+    for bc in bc_data 
+        dofs = bc["DoFs"] 
+          
+        for dof in dofs 
+            if dof < 1 || dof > 3 
+                error("Invalid DoF index: $dof (must be 1..3).") 
+            end 
+        end 
+
+        affected = get_affected_nodes(bc, nodes) 
+        for nd in affected 
+            for d in dofs 
+                bc_indicator[nd, d] = one(T) 
+            end 
+        end 
+    end 
+
+    return bc_indicator 
+end 
+
+""" 
+    reduce_system(K, F, bc_data, nodes, elements) 
+
+Use bc_data + final node array to mark constrained DOFs, 
+then zero them out of the stiffness/force system. 
+""" 
+function reduce_system(K::SparseMatrixCSC{Float32,Int}, 
+                       F::Vector{Float32}, 
+                       bc_data::Vector{Any},  
+                       nodes::Matrix{Float32}, 
+                       elements::Matrix{Int}) 
+
+    nNodes = size(nodes, 1) 
+    ndof   = 3*nNodes 
+    constrained = falses(ndof) 
+
+    for bc in bc_data 
+        dofs = bc["DoFs"] 
+        affected = get_affected_nodes(bc, nodes) 
+          
+        for nd in affected 
+            for d in dofs 
+                gdof = 3*(nd-1) + d 
+                constrained[gdof] = true 
+                F[gdof] = Float32(0.0)  
+            end 
+        end 
+    end 
+
+    free_indices = findall(!, constrained) 
+    K_reduced = K[free_indices, free_indices] 
+    F_reduced = F[free_indices] 
+      
+    return K_reduced, F_reduced, free_indices 
+end 
+
+""" 
+    find_nearest_node(target_coords, nodes)
+
+Finds the index of the node closest to `target_coords`.
+Tie-breaker: Largest X, then Largest Y, then Largest Z.
+"""
+function find_nearest_node(target_coords::Vector{Float32}, nodes::Matrix{Float32})
+    nNodes = size(nodes, 1)
+    best_idx = -1
+    min_dist_sq = Inf32
+
+    @inbounds for i in 1:nNodes
+        dx = nodes[i, 1] - target_coords[1]
+        dy = nodes[i, 2] - target_coords[2]
+        dz = nodes[i, 3] - target_coords[3]
+        dist_sq = dx*dx + dy*dy + dz*dz
+
+        if dist_sq < (min_dist_sq - 1e-9)
+            min_dist_sq = dist_sq
+            best_idx = i
+        elseif abs(dist_sq - min_dist_sq) <= 1e-9
+            # Tie-breaker: "Largest coordinates"
+            if nodes[i, 1] > nodes[best_idx, 1]
+                best_idx = i
+            elseif nodes[i, 1] == nodes[best_idx, 1]
+                if nodes[i, 2] > nodes[best_idx, 2]
+                    best_idx = i
+                elseif nodes[i, 2] == nodes[best_idx, 2]
+                    if nodes[i, 3] > nodes[best_idx, 3]
+                        best_idx = i
+                    end
+                end
+            end
+        end
+    end
+    return best_idx
+end
+
+""" 
+    apply_external_forces!(F, forces_data, nodes, elements) 
+
+Look up affected nodes by coordinate or direct node index, 
+then apply the force. 
+If strict location matching fails, it finds the NEAREST node (closest distance, 
+breaking ties with largest coordinates).
+""" 
+function apply_external_forces!(F::Vector{T}, 
+                                 forces_data::Vector{Any},  
+                                 nodes::Matrix{Float32}, 
+                                 elements::Matrix{Int}) where T<:AbstractFloat 
+
+    x_bounds = extrema(view(nodes, :, 1))
+    y_bounds = extrema(view(nodes, :, 2))
+    z_bounds = extrema(view(nodes, :, 3))
+
+    for force in forces_data 
+        affected_nodes = get_affected_nodes(force, nodes) 
+
+        
+        if isempty(affected_nodes) && haskey(force, "location")
+            loc = force["location"]
+            
+            
+            is_point_spec = all(x -> x != ":", loc)
+            
+            if is_point_spec
+                tx = resolve_coordinate_value(loc[1], x_bounds[1], x_bounds[2])
+                ty = resolve_coordinate_value(loc[2], y_bounds[1], y_bounds[2])
+                tz = resolve_coordinate_value(loc[3], z_bounds[1], z_bounds[2])
+                target = Float32[tx, ty, tz]
+
+                # @warn "No exact node found for Force at $(loc) -> $target. Searching for nearest node..."
+                nearest_idx = find_nearest_node(target, nodes)
+                
+                if nearest_idx != -1
+                    affected_nodes = [nearest_idx]
+                    
+                    # @info "  -> Applied force to nearest node #$nearest_idx at $found_node"
+                end
+            end
+        end
+        
+        if isempty(affected_nodes) 
+            # @warn "No nodes found for force specification (even after nearest search); skipping this force: $(force)" 
+            continue 
+        end 
+          
+        f_raw = force["F"] 
+        f_arr = zeros(T, 3) 
+        len_to_copy = min(length(f_raw), 3) 
+        f_arr[1:len_to_copy] = T.(f_raw[1:len_to_copy])  
+
+        # If user gave "location", we spread the total force among the matched nodes 
+        scale_factor = haskey(force, "location") ? (one(T) / length(affected_nodes)) : one(T) 
+
+        for nd in affected_nodes 
+            for i in 1:3 
+                global_dof = 3*(nd-1) + i 
+                F[global_dof] += scale_factor * f_arr[i] 
+            end 
+        end 
+    end 
+
+    return F 
+end 
+
+end
+"// # FILE: .\src\Core\Element.jl";
+
+module Element
+
+using LinearAlgebra
+export NAT_COORDS, shape_functions, material_matrix, hex_element_stiffness, get_canonical_stiffness, get_scalar_canonical_matrices
+
+const NAT_COORDS = Float32[
+    -1 -1 -1;
+     1 -1 -1;
+     1  1 -1;
+    -1  1 -1;
+    -1 -1  1;
+     1 -1  1;
+     1  1  1;
+    -1  1  1
+]
+
+"""
+    shape_functions(xi, eta, zeta)
+
+Computes the trilinear shape functions and their derivatives at (xi, eta, zeta).
+Returns (N, dN) with N=8 shape values, dN=8x3 derivative matrix.
+"""
+function shape_functions(xi, eta, zeta)
+    N  = zeros(Float32, 8)
+    dN = zeros(Float32, 8, 3)
+    
+    
+    p1 = Float32(0.125)
+    
+    @inbounds for i in 1:8
+        xi_i, eta_i, zeta_i = NAT_COORDS[i,1], NAT_COORDS[i,2], NAT_COORDS[i,3]
+        
+        term_xi   = (1.0f0 + xi*xi_i)
+        term_eta  = (1.0f0 + eta*eta_i)
+        term_zeta = (1.0f0 + zeta*zeta_i)
+        
+        N[i] = p1 * term_xi * term_eta * term_zeta
+        
+        dN[i,1] = p1 * xi_i * term_eta * term_zeta
+        dN[i,2] = p1 * term_xi * eta_i * term_zeta
+        dN[i,3] = p1 * term_xi * term_eta * zeta_i
+    end
+    return N, dN
+end
+
+"""
+    material_matrix(E, nu)
+
+Constructs the 6x6 isotropic material matrix for 3D elasticity.
+"""
+function material_matrix(E::Float32, nu::Float32)
+    inv_den = 1.0f0 / ((1.0f0 + nu) * (1.0f0 - 2.0f0 * nu))
+    factor = E * inv_den
+    
+    c1 = (1.0f0 - nu) * factor
+    c2 = nu * factor
+    c3 = ((1.0f0 - 2.0f0 * nu) / 2.0f0) * factor
+    
+    
+    D = zeros(Float32, 6, 6)
+    
+    D[1,1] = c1; D[1,2] = c2; D[1,3] = c2
+    D[2,1] = c2; D[2,2] = c1; D[2,3] = c2
+    D[3,1] = c2; D[3,2] = c2; D[3,3] = c1
+    
+    D[4,4] = c3
+    D[5,5] = c3
+    D[6,6] = c3
+    
+    return D
+end
+
+"""
+    hex_element_stiffness(nodes, E, nu)
+
+Computes the 24x24 stiffness for a hex element.
+"""
+function hex_element_stiffness(nodes::AbstractMatrix{Float32}, E::Float32, nu::Float32)
+    D = material_matrix(E, nu)
+    ke = zeros(Float32, 24, 24)
+
+    a = 1.0f0 / sqrt(3.0f0)
+    gauss_pts = Float32[-a, a]
+    
+    
+    B = zeros(Float32, 6, 24)
+
+    @inbounds for xi in gauss_pts, eta in gauss_pts, zeta in gauss_pts
+        
+        _, dN_dxi = shape_functions(xi, eta, zeta)
+        J    = transpose(dN_dxi) * nodes
+        detJ = det(J)
+        
+        if detJ <= 0.0f0 
+            
+            
+            
+            error("Non-positive Jacobian detected in element stiffness calculation.")
+        end
+        
+        invJ = inv(J)
+        dN_dx = dN_dxi * transpose(invJ)
+
+        fill!(B, 0.0f0)
+        
+        for i in 1:8
+            idx = 3*(i-1)
+            dN_i = view(dN_dx, i, :)
+
+            B[1, idx+1] = dN_i[1]
+            B[2, idx+2] = dN_i[2]
+            B[3, idx+3] = dN_i[3]
+
+            B[4, idx+1] = dN_i[2]
+            B[4, idx+2] = dN_i[1]
+            
+            B[5, idx+2] = dN_i[3]
+            B[5, idx+3] = dN_i[2]
+            
+            B[6, idx+1] = dN_i[3]
+            B[6, idx+3] = dN_i[1]
+        end
+
+        
+        ke .+= transpose(B) * D * B * detJ
+    end
+
+    return ke
+end
+
+"""
+    get_canonical_stiffness(dx, dy, dz, nu)
+
+Computes a "base" stiffness matrix for a standard rectangular element of size dx*dy*dz
+with Young's Modulus E=1.0. 
+This optimization significantly speeds up assembly for structured meshes.
+"""
+function get_canonical_stiffness(dx::Float32, dy::Float32, dz::Float32, nu::Float32)
+    
+    nodes = Float32[
+        0.0 0.0 0.0;
+        dx  0.0 0.0;
+        dx  dy  0.0;
+        0.0 dy  0.0;
+        0.0 0.0 dz;
+        dx  0.0 dz;
+        dx  dy  dz;
+        0.0 dy  dz
+    ]
+    
+    nodes .-= [dx/2 dy/2 dz/2]
+    
+    return hex_element_stiffness(nodes, 1.0f0, nu)
+end
+
+"""
+    get_scalar_canonical_matrices(dx, dy, dz)
+
+Computes the 8x8 element Mass matrix (Me) and Stiffness/Laplacian matrix (Ke) 
+for a scalar field (like density or temperature) on a rectangular Hex8 element.
+Used for Helmholtz filtering.
+"""
+function get_scalar_canonical_matrices(dx::Float32, dy::Float32, dz::Float32)
+    
+    nodes = Float32[
+        -dx/2 -dy/2 -dz/2;
+         dx/2 -dy/2 -dz/2;
+         dx/2  dy/2 -dz/2;
+        -dx/2  dy/2 -dz/2;
+        -dx/2 -dy/2  dz/2;
+         dx/2 -dy/2  dz/2;
+         dx/2  dy/2  dz/2;
+        -dx/2  dy/2  dz/2
+    ]
+
+    Ke = zeros(Float32, 8, 8)
+    Me = zeros(Float32, 8, 8)
+
+    
+    a = 1.0f0 / sqrt(3.0f0)
+    gauss_pts = Float32[-a, a]
+
+    @inbounds for xi in gauss_pts, eta in gauss_pts, zeta in gauss_pts
+        N, dN_dxi = shape_functions(xi, eta, zeta)
+        
+        
+        J = transpose(dN_dxi) * nodes
+        detJ = det(J)
+        invJ = inv(J)
+        
+        
+        dN_dx = dN_dxi * transpose(invJ)
+        
+        weight = detJ 
+        
+        
+        Ke .+= (dN_dx * transpose(dN_dx)) .* weight
+        
+        
+        Me .+= (N * transpose(N)) .* weight
+    end
+
+    return Ke, Me
+end
+
+end
+"// # FILE: .\src\Core\Stress.jl";
+module Stress 
+ 
+using LinearAlgebra 
+using ..Element 
+export compute_stress_field 
+ 
+""" 
+    compute_element_stress(element_nodes, element_disp, E, nu) 
+ 
+Computes the 3x3 stress tensor at the center of a hexahedral element via B*U => strain => stress. 
+""" 
+function compute_element_stress(element_nodes::Array{Float32,2}, 
+                                 element_disp::Array{Float32,1}, 
+                                 E::Float32, nu::Float32) 
+    D = Element.material_matrix(E, nu) 
+     
+    xi, eta, zeta = Float32(0.0), Float32(0.0), Float32(0.0)  
+    _, dN_dxi = Element.shape_functions(xi, eta,  
+zeta) 
+    J = transpose(dN_dxi)*element_nodes 
+    detJ = det(J) 
+    if detJ <= Float32(0.0)  
+        error("Non-positive Jacobian!") 
+    end 
+    invJ = inv(J) 
+    dN_dx = dN_dxi * transpose(invJ) 
+ 
+     
+    B = zeros(Float32, 6, 24) 
+    for i in 1:8 
+        idx = 3*(i-1)+1 
+        dN_i = dN_dx[i, :] 
+ 
+         
+     
+        B[1, idx]   = dN_i[1] 
+        B[2, idx+1] = dN_i[2] 
+        B[3, idx+2] = dN_i[3] 
+ 
+         
+        B[4, idx]   = dN_i[2]   
+        B[4, idx+1] = dN_i[1] 
+        B[5, idx+1] = dN_i[3]   
+        B[5, idx+2] = dN_i[2] 
+         
+        B[6, idx]   = dN_i[3]   
+        B[6, idx+2] = dN_i[1] 
+    end 
+ 
+    strain = B * element_disp 
+    stress_voigt = D * strain 
+ 
+    σ = zeros(Float32, 3, 3) 
+    σ[1,1] = stress_voigt[1]   
+    σ[2,2] = stress_voigt[2]   
+    σ[3,3] = stress_voigt[3]   
+    σ[1,2] = stress_voigt[4]; σ[2,1] = stress_voigt[4]   
+    σ[2,3] = stress_voigt[5]; σ[3,2] = stress_voigt[5]   
+    σ[1,3] = stress_voigt[6]; σ[3,1] = stress_voigt[6]   
+    return σ 
+end 
+ 
+""" 
+    compute_principal_and_vonmises(σ) 
+ 
+Given a 3x3 stress tensor, returns (principal_stresses, von_mises). 
+Principal are sorted descending. Von Mises uses standard formula. 
+""" 
+function compute_principal_and_vonmises(σ::Matrix{Float32}) 
+    eigvals = eigen(σ).values 
+     
+    principal_stresses = sort(eigvals, rev=true) 
+ 
+    σxx = σ[1,1] 
+    σyy = σ[2,2] 
+    σzz = σ[3,3] 
+    σxy = σ[1,2] 
+    σyz = σ[2,3] 
+    σxz = σ[1,3] 
+ 
+    vm = sqrt(Float32(0.5) * ((σxx-σyy)^2 + (σyy-σzz)^2 + (σzz-σxx)^2) + 
+              Float32(3.0)*(σxy^2 + σyz^2 + σxz^2))  
+ 
+    return principal_stresses, vm 
+end 
+ 
+""" 
+    compute_stress_field(nodes, elements, U, E, nu, density) 
+ 
+Loop over elements, compute: 
+  - principal stresses (3 x nElem) 
+  - von Mises (1 x nElem) 
+  - full stress in Voigt form (6 x nElem) 
+  - l1 stress norm (1 x nElem) <-- MODIFIED 
+ 
+Returns (principal_field, vonmises_field, full_stress_voigt, l1_stress_norm_field). <-- MODIFIED 
+""" 
+function compute_stress_field(nodes, elements, U, E::Float32, nu::Float32, density::Vector{Float32}) 
+    nElem = size(elements, 1) 
+    principal_field     = zeros(Float32, 3, nElem) 
+    vonmises_field    = zeros(Float32, nElem) 
+    full_stress_voigt = zeros(Float32, 6,  
+nElem) 
+    l1_stress_norm_field = zeros(Float32, nElem)  
+ 
+    for e in 1:nElem 
+        conn = elements[e, :] 
+        element_nodes = nodes[conn, :] 
+ 
+         
+        element_disp = zeros(Float32, 24) 
+        for i in 1:8 
+            global_node = conn[i] 
+            element_disp[3*(i-1)+1 : 3*i] = U[3*(global_node-1)+1 : 3*global_node] 
+         
+        end 
+ 
+        # Use the scaled Young's Modulus for this element 
+        E_local = E * density[e] 
+         
+        σ = compute_element_stress(element_nodes, element_disp, E_local, nu) 
+        (principal, vm) = compute_principal_and_vonmises(σ) 
+ 
+         
+        l1_norm = abs(principal[1]) + abs(principal[2]) + abs(principal[3]) 
+         
+ 
+        principal_field[:, e] = principal 
+        vonmises_field[e]       = vm 
+        l1_stress_norm_field[e] = l1_norm  
+ 
+         
+        full_stress_voigt[:, e] .= (σ[1,1], σ[2,2], σ[3,3], σ[1,2], σ[2,3], σ[1,3]) 
+    end 
+ 
+    return principal_field, vonmises_field, full_stress_voigt, l1_stress_norm_field  
+end 
+ 
+end 
+"// # FILE: .\src\IO\Configuration.jl";
+module Configuration 
+ 
+using YAML  
+using ..Mesh  
+using ..Helpers 
+using ..MeshShapeProcessing 
+ 
+export load_configuration, setup_geometry, initialize_density_field 
+ 
+""" 
+    load_configuration(filename::String) 
+ 
+Load and parse a JSON/YAML configuration file. 
+""" 
+function load_configuration(filename::String) 
+    if !isfile(filename) 
+        error("Configuration file '$(filename)' not found") 
+    end 
+      
+    return YAML.load_file(filename) 
+end 
+ 
+""" 
+    setup_geometry(config) 
+ 
+Process the geometry configuration and return parameters for mesh generation. 
+""" 
+function setup_geometry(config) 
+      
+    length_x = config["geometry"]["length_x"] 
+    length_y = config["geometry"]["length_y"] 
+    length_z = config["geometry"]["length_z"] 
+    target_elem_count = config["geometry"]["target_elem_count"] 
+      
+    println("Domain dimensions:") 
+    println("  X: 0 to $(length_x)") 
+    println("  Y: 0 to $(length_y)") 
+    println("  Z: 0 to $(length_z)") 
+      
+    shapes_add = Any[] 
+    shapes_remove = Any[] 
+    
+    for (key, shape) in config["geometry"] 
+        if key in ["length_x", "length_y", "length_z", "target_elem_count", "shape_notes"] 
+            continue 
+        end 
+          
+        if haskey(shape, "type") 
+            action = lowercase(get(shape, "action", "remove")) 
+            if action == "add" 
+                push!(shapes_add, shape) 
+            elseif action == "remove" 
+                push!(shapes_remove, shape) 
+            else 
+                push!(shapes_remove, shape) 
+            end 
+        end 
+    end 
+ 
+    println("Found $(length(shapes_add)) shapes to add and $(length(shapes_remove)) shapes to remove.") 
+      
+    nElem_x, nElem_y, nElem_z, dx, dy, dz, actual_elem_count = 
+        Helpers.calculate_element_distribution(length_x, length_y, length_z, target_elem_count) 
+      
+    println("Mesh parameters:") 
+    println("  Domain: $(length_x) x $(length_y) x $(length_z) meters") 
+    println("  Elements: $(nElem_x) x $(nElem_y) x $(nElem_z) = $(actual_elem_count)") 
+    println("  Element sizes: $(dx) x $(dy) x $(dz)") 
+      
+    max_domain_dim = max(length_x, length_y, length_z) 
+ 
+    return ( 
+        nElem_x = nElem_x,  
+        nElem_y = nElem_y,  
+        nElem_z = nElem_z, 
+        dx = dx, 
+        dy = dy, 
+        dz = dz, 
+        shapes_to_add = shapes_add, 
+        shapes_to_remove = shapes_remove, 
+        actual_elem_count = actual_elem_count, 
+        max_domain_dim = Float32(max_domain_dim)  
+    ) 
+end 
+ 
+""" 
+    initialize_density_field(nodes, elements, shapes_to_add, shapes_to_remove, config) 
+ 
+Processes geometric shapes to set the initial density array. 
+Returns `density`, `original_density`, and `protected_elements_mask`. 
+""" 
+function initialize_density_field(nodes::Matrix{Float32}, 
+                                  elements::Matrix{Int}, 
+                                  shapes_to_add::Vector{Any}, 
+                                  shapes_to_remove::Vector{Any}, 
+                                  config::Dict) 
+      
+    min_density = Float32(get(config["optimization_parameters"], "min_density", 1e-3)) 
+    max_density_add = Float32(get(config["optimization_parameters"], "max_density_initial_add", 10.0)) 
+ 
+    nElem = size(elements, 1) 
+    println("Processing geometric density modifications...") 
+    
+    
+    density = ones(Float32, nElem) 
+      
+    
+    
+    MeshShapeProcessing.apply_geometric_modifiers!(density, nodes, elements, shapes_to_add, max_density_add)
+
+    
+    MeshShapeProcessing.apply_geometric_modifiers!(density, nodes, elements, shapes_to_remove, min_density)
+      
+    println("Element density processing complete. Min Density floor: $(min_density)") 
+ 
+    original_density = copy(density) 
+      
+    
+    protected_elements_mask = (original_density .!= 1.0f0) 
+    num_protected = sum(protected_elements_mask) 
+    println("Found $(num_protected) protected elements (voids/rigid) that will not be iterated.") 
+ 
+    return density, original_density, protected_elements_mask 
+end 
+ 
+end
+"// # FILE: .\src\IO\ExportVTK.jl";
+
+module ExportVTK 
+
+using Printf 
+
+export export_mesh, export_solution 
+
+function export_mesh(nodes::Matrix{Float32}, 
+                     elements::Matrix{Int}; 
+                     bc_indicator=nothing, 
+                     filename::String="mesh_output.vtu") 
+     
+    if !endswith(lowercase(filename), ".vtk") && !endswith(lowercase(filename), ".vtu") 
+        filename *= ".vtk" 
+    end 
+     
+    if any(isnan, nodes) || any(isinf, nodes) 
+        @warn "Found NaN or Inf values in node coordinates. Replacing with zeros." 
+        nodes = replace(nodes, NaN => Float32(0.0), Inf => Float32(0.0), -Inf => Float32(0.0)) 
+    end 
+     
+    max_coord = maximum(abs.(nodes)) 
+    if max_coord > Float32(1.0e10) 
+        @warn "Very large coordinate values detected (maximum absolute value: $max_coord). Clamping to reasonable range." 
+        nodes = clamp.(nodes, Float32(-1.0e10), Float32(1.0e10)) 
+    end 
+
+    nElem  = size(elements, 1) 
+    nNodes = size(nodes, 1) 
+
+    valid_elements = Int[] 
+    for e = 1:nElem 
+        elem_nodes = elements[e, :] 
+        if any(n -> n < 1 || n > nNodes, elem_nodes) 
+            @warn "Element $e has invalid node indices; skipping it entirely." 
+        else 
+            push!(valid_elements, e) 
+        end 
+    end 
+
+    if isempty(valid_elements) 
+        @warn "No valid elements found. Skipping VTK export." 
+        return 
+    end 
+
+    nElem_valid = length(valid_elements) 
+     
+    try 
+        open(filename, "w") do file 
+            write(file, "# vtk DataFile Version 3.0\n") 
+            write(file, "HEXA FEM Mesh (BINARY)\n") 
+            write(file, "BINARY\n") 
+            write(file, "DATASET UNSTRUCTURED_GRID\n") 
+             
+            write(file, "POINTS $(nNodes) float\n") 
+            coords_flat = zeros(Float32, nNodes * 3) 
+            for i in 1:nNodes 
+                coords_flat[3*(i-1)+1] = nodes[i, 1] 
+                coords_flat[3*(i-1)+2] = nodes[i, 2] 
+                coords_flat[3*(i-1)+3] = nodes[i, 3] 
+            end 
+            write(file, hton.(coords_flat)) 
+             
+            write(file, "\nCELLS $(nElem_valid) $(nElem_valid * 9)\n") 
+            cell_data = zeros(Int32, nElem_valid * 9) 
+            for (idx_out, idx_in) in enumerate(valid_elements) 
+                offset = (idx_out - 1) * 9 
+                cell_data[offset + 1] = Int32(8) 
+                for j in 1:8 
+                    cell_data[offset + 1 + j] = Int32(elements[idx_in, j] - 1) 
+                end 
+            end 
+            write(file, hton.(cell_data)) 
+             
+            write(file, "\nCELL_TYPES $(nElem_valid)\n") 
+            cell_types = fill(Int32(12), nElem_valid) 
+            write(file, hton.(cell_types)) 
+             
+            if bc_indicator !== nothing && size(bc_indicator, 1) == nNodes 
+                write(file, "\nPOINT_DATA $(nNodes)\n") 
+                ncols_bc = min(size(bc_indicator, 2), 3) 
+                 
+                if ncols_bc >= 2 
+                    write(file, "VECTORS BC float\n") 
+                    bc_data = zeros(Float32, nNodes * 3) 
+                    for i in 1:nNodes 
+                        if ncols_bc == 2 
+                            bc_data[3*(i-1)+1] = bc_indicator[i, 1] 
+                            bc_data[3*(i-1)+2] = bc_indicator[i, 2] 
+                            bc_data[3*(i-1)+3] = Float32(0.0) 
+                        else 
+                            bc_data[3*(i-1)+1] = bc_indicator[i, 1] 
+                            bc_data[3*(i-1)+2] = bc_indicator[i, 2] 
+                            bc_data[3*(i-1)+3] = bc_indicator[i, 3] 
+                        end 
+                    end 
+                    write(file, hton.(bc_data)) 
+                else 
+                    write(file, "SCALARS BCx float 1\n") 
+                    write(file, "LOOKUP_TABLE default\n") 
+                    bc_data = [bc_indicator[i, 1] for i in 1:nNodes] 
+                    write(file, hton.(bc_data)) 
+                end 
+            end 
+        end 
+         
+        println("Successfully exported mesh to $filename (BINARY format)") 
+    catch e 
+        @error "Failed to save VTK file: $e" 
+        println("Error details: ", e) 
+    end 
+end 
+
+function export_solution(nodes::Matrix{Float32}, 
+                         elements::Matrix{Int}, 
+                         U_full::Vector{Float32}, 
+                         F::Vector{Float32}, 
+                         bc_indicator::Matrix{Float32}, 
+                         principal_field::Matrix{Float32}, 
+                         vonmises_field::Vector{Float32}, 
+                         full_stress_voigt::Matrix{Float32}, 
+                         l1_stress_norm_field::Vector{Float32}; 
+                         density::Union{Vector{Float32}, Nothing}=nothing,
+                         scale::Float32=Float32(1.0), 
+                         filename::String="solution_output.vtu") 
+
+    function sanitize_data(data) 
+        data = replace(data, NaN => Float32(0.0), Inf => Float32(0.0), -Inf => Float32(0.0)) 
+        max_val = maximum(abs.(data)) 
+        if max_val > Float32(1.0e10) 
+            @warn "Very large values detected (max abs: $max_val). Clamping to prevent ParaView crashes." 
+            return clamp.(data, Float32(-1.0e10), Float32(1.0e10)) 
+        end 
+        return data 
+    end 
+     
+    U_full = sanitize_data(U_full) 
+    F = sanitize_data(F) 
+    nodes = sanitize_data(nodes) 
+    principal_field = sanitize_data(principal_field) 
+    vonmises_field = sanitize_data(vonmises_field) 
+    full_stress_voigt = sanitize_data(full_stress_voigt) 
+    l1_stress_norm_field = sanitize_data(l1_stress_norm_field) 
+
+    nNodes = size(nodes, 1) 
+    nElem  = size(elements, 1) 
+
+    valid_elements = Int[] 
+    for e = 1:nElem 
+        elem_nodes = elements[e, :] 
+        if any(n -> n < 1 || n > nNodes, elem_nodes) 
+            @warn "Element $e has invalid node indices; skipping it." 
+        else 
+            push!(valid_elements, e) 
+        end 
+    end 
+
+    nElem_valid = length(valid_elements) 
+    if nElem_valid == 0 
+        @warn "No valid elements remain. Skipping solution export." 
+        return 
+    end 
+
+    function ensure_array_size(arr, expected_size, pad_value=Float32(0.0)) 
+        if length(arr) < expected_size 
+            return vcat(arr, fill(pad_value, expected_size - length(arr))) 
+        elseif length(arr) > expected_size 
+            return arr[1:expected_size] 
+        else 
+            return arr 
+        end 
+    end 
+     
+    U_full = ensure_array_size(U_full, 3*nNodes) 
+    F = ensure_array_size(F, 3*nNodes) 
+     
+    displacement = zeros(Float32, nNodes, 3) 
+    forces = zeros(Float32, nNodes, 3) 
+     
+    for i in 1:nNodes 
+        base_idx = 3*(i-1) 
+        if base_idx + 3 <= length(U_full) 
+            displacement[i, 1] = U_full[base_idx + 1] 
+            displacement[i, 2] = U_full[base_idx + 2] 
+            displacement[i, 3] = U_full[base_idx + 3] 
+        end 
+         
+        if base_idx + 3 <= length(F) 
+            forces[i, 1] = F[base_idx + 1] 
+            forces[i, 2] = F[base_idx + 2] 
+            forces[i, 3] = F[base_idx + 3] 
+        end 
+    end 
+     
+    disp_mag = sqrt.(sum(displacement.^2, dims=2))[:,1]   
+
+    max_disp = maximum(abs.(displacement)) 
+    if max_disp > 0 
+        max_dim = maximum([ 
+            maximum(nodes[:,1]) - minimum(nodes[:,1]), 
+            maximum(nodes[:,2]) - minimum(nodes[:,2]), 
+            maximum(nodes[:,3]) - minimum(nodes[:,3]) 
+        ]) 
+        if scale * max_disp > max_dim * 5 
+            @warn "Scale factor causes very large deformation => auto reducing." 
+            scale = Float32(0.5) * max_dim / max_disp 
+        end 
+    end 
+
+    deformed_nodes = copy(nodes) 
+    @inbounds for i in 1:nNodes 
+        deformed_nodes[i,1] += scale*displacement[i,1] 
+        deformed_nodes[i,2] += scale*displacement[i,2] 
+        deformed_nodes[i,3] += scale*displacement[i,3] 
+    end 
+     
+    deformed_nodes = sanitize_data(deformed_nodes) 
+
+    if size(principal_field, 2) < nElem 
+        principal_field = hcat(principal_field, zeros(Float32, 3, nElem - size(principal_field, 2))) 
+    end 
+     
+    vonmises_field = ensure_array_size(vonmises_field, nElem) 
+    l1_stress_norm_field = ensure_array_size(l1_stress_norm_field, nElem) 
+     
+    if size(full_stress_voigt, 2) < nElem 
+        full_stress_voigt = hcat(full_stress_voigt, zeros(Float32, 6, nElem - size(full_stress_voigt, 2))) 
+    end 
+     
+    principal_field_valid = principal_field[:, valid_elements] 
+    vonmises_field_valid = vonmises_field[valid_elements] 
+    l1_stress_norm_field_valid = l1_stress_norm_field[valid_elements] 
+    full_stress_voigt_valid = full_stress_voigt[:, valid_elements] 
+
+    
+    if endswith(lowercase(filename), ".vtk") || 
+       endswith(lowercase(filename), ".vtu") 
+        base_filename = filename[1:end-4] 
+    else 
+        base_filename = filename 
+    end 
+     
+    
+    combined_filename = base_filename * "_combined.vtk"
+
+    try 
+        open(combined_filename, "w") do file 
+            write(file, "# vtk DataFile Version 3.0\n") 
+            write(file, "HEXA FEM Solution (Combined Data - BINARY)\n") 
+            write(file, "BINARY\n") 
+            write(file, "DATASET UNSTRUCTURED_GRID\n") 
+             
+            
+            write(file, "POINTS $(nNodes) float\n") 
+            coords_flat = zeros(Float32, nNodes * 3) 
+            for i in 1:nNodes 
+                coords_flat[3*(i-1)+1] = nodes[i, 1] 
+                coords_flat[3*(i-1)+2] = nodes[i, 2] 
+                coords_flat[3*(i-1)+3] = nodes[i, 3] 
+            end 
+            write(file, hton.(coords_flat)) 
+             
+            write(file, "\nCELLS $(nElem_valid) $(nElem_valid * 9)\n") 
+            cell_data = zeros(Int32, nElem_valid * 9) 
+            for (idx_out, idx_in) in enumerate(valid_elements) 
+                offset = (idx_out - 1) * 9 
+                cell_data[offset + 1] = Int32(8) 
+                for j in 1:8 
+                    cell_data[offset + 1 + j] = Int32(elements[idx_in, j] - 1) 
+                end 
+            end 
+            write(file, hton.(cell_data)) 
+             
+            write(file, "\nCELL_TYPES $(nElem_valid)\n") 
+            cell_types = fill(Int32(12), nElem_valid) 
+            write(file, hton.(cell_types)) 
+             
+            
+            write(file, "\nPOINT_DATA $(nNodes)\n") 
+             
+            
+            write(file, "VECTORS Displacement float\n") 
+            disp_flat = zeros(Float32, nNodes * 3) 
+            for i in 1:nNodes 
+                disp_flat[3*(i-1)+1] = displacement[i, 1] 
+                disp_flat[3*(i-1)+2] = displacement[i, 2] 
+                disp_flat[3*(i-1)+3] = displacement[i, 3] 
+            end 
+            write(file, hton.(disp_flat)) 
+             
+            
+            write(file, "\nSCALARS Displacement_Magnitude float 1\n") 
+            write(file, "LOOKUP_TABLE default\n") 
+            write(file, hton.(disp_mag)) 
+             
+            
+            write(file, "\nVECTORS Force float\n") 
+            force_flat = zeros(Float32, nNodes * 3) 
+            for i in 1:nNodes 
+                force_flat[3*(i-1)+1] = forces[i, 1] 
+                force_flat[3*(i-1)+2] = forces[i, 2] 
+                force_flat[3*(i-1)+3] = forces[i, 3] 
+            end 
+            write(file, hton.(force_flat)) 
+             
+            
+            if size(bc_indicator, 1) == nNodes 
+                ncols_bc = min(size(bc_indicator, 2), 3) 
+                if ncols_bc >= 2 
+                    write(file, "\nVECTORS BC float\n") 
+                    bc_data = zeros(Float32, nNodes * 3) 
+                    for i in 1:nNodes 
+                        if ncols_bc == 2 
+                            bc_data[3*(i-1)+1] = bc_indicator[i, 1] 
+                            bc_data[3*(i-1)+2] = bc_indicator[i, 2] 
+                            bc_data[3*(i-1)+3] = Float32(0.0) 
+                        else 
+                            bc_data[3*(i-1)+1] = bc_indicator[i, 1] 
+                            bc_data[3*(i-1)+2] = bc_indicator[i, 2] 
+                            bc_data[3*(i-1)+3] = bc_indicator[i, 3] 
+                        end 
+                    end 
+                    write(file, hton.(bc_data)) 
+                else 
+                    write(file, "\nSCALARS BC float 1\n") 
+                    write(file, "LOOKUP_TABLE default\n") 
+                    bc_data = [bc_indicator[i, 1] for i in 1:nNodes] 
+                    write(file, hton.(bc_data)) 
+                end 
+            end 
+             
+            
+            write(file, "\nCELL_DATA $(nElem_valid)\n") 
+             
+            
+            write(file, "SCALARS Von_Mises_Stress float 1\n") 
+            write(file, "LOOKUP_TABLE default\n") 
+            write(file, hton.(vonmises_field_valid)) 
+             
+            
+            write(file, "\nSCALARS l1_stress_norm float 1\n") 
+            write(file, "LOOKUP_TABLE default\n") 
+            write(file, hton.(l1_stress_norm_field_valid)) 
+             
+            
+            write(file, "\nVECTORS Principal_Stress float\n") 
+            principal_flat = zeros(Float32, nElem_valid * 3) 
+            for i in 1:nElem_valid 
+                principal_flat[3*(i-1)+1] = principal_field_valid[1, i] 
+                principal_flat[3*(i-1)+2] = principal_field_valid[2, i] 
+                principal_flat[3*(i-1)+3] = principal_field_valid[3, i] 
+            end 
+            write(file, hton.(principal_flat)) 
+             
+            
+            stress_names = ["Stress_XX", "Stress_YY", "Stress_ZZ", "Stress_XY", "Stress_YZ", "Stress_XZ"] 
+            for idx in 1:6 
+                write(file, "\nSCALARS $(stress_names[idx]) float 1\n") 
+                write(file, "LOOKUP_TABLE default\n") 
+                stress_component = [full_stress_voigt_valid[idx, i] for i in 1:nElem_valid] 
+                write(file, hton.(stress_component)) 
+            end 
+
+            
+            if density !== nothing
+                write(file, "\nSCALARS Element_Density float 1\n")
+                write(file, "LOOKUP_TABLE default\n")
+                density_valid = density[valid_elements]
+                write(file, hton.(density_valid))
+            end
+        end 
+         
+        println("Successfully exported combined solution to $combined_filename (BINARY format)") 
+        println("File contains: displacement, forces, BCs, stress tensors, and element density")
+        
+    catch e 
+        @error "Failed to save combined VTK file: $e" 
+        println("Error details: ", e) 
+    end 
+
+    return nothing 
+end 
+
+end
+"// # FILE: .\src\IO\Marching.jl";
+using JSON3 
+using Statistics 
+using Printf 
+import MarchingCubes: MC, march 
+ 
+const LX = 60.0f0 
+const LY = 20.0f0 
+const LZ = 0.1f0 
+ 
+const JSON_FILE_NAME = "iter_20_config_element_data.json" 
+const JSON_FILE_PATH = joinpath(@__DIR__, "RESULTS", JSON_FILE_NAME)  
+ 
+const ISOSURFACE_DENSITY = 0.8f0 
+const STL_OUTPUT_FILE = "topopt_isosurface_80.stl" 
+ 
+function infer_mesh_and_load_density(filepath::String) 
+     
+    println("1. Loading element data and inferring mesh structure from: $filepath") 
+     
+    if !isfile(filepath) 
+        error("File not found at path: $filepath. Ensure the optimization run completed successfully and the 'RESULTS' folder is correctly placed relative to this script.") 
+    end 
+ 
+    data = JSON3.read(read(filepath, String)) 
+     
+    n_total_el_from_file = length(data) 
+ 
+    if n_total_el_from_file < 2 
+        error("Not enough elements in the result file to infer mesh size.") 
+    end 
+ 
+    density_field = Dict{Int, Float32}() 
+     
+    first_el_centroid = data[1]["centroid"] 
+    dx, dy, dz = 0.0f0, 0.0f0, 0.0f0 
+     
+    if length(data) >= 2 
+        second_el_centroid = data[2]["centroid"] 
+        dx = abs(second_el_centroid[1] - first_el_centroid[1]) 
+    end 
+ 
+    cy1 = first_el_centroid[2] 
+    for i = 2:length(data) 
+        cy_i = data[i]["centroid"][2] 
+        if abs(cy_i - cy1) > 1e-6  
+            dy = abs(cy_i - cy1) 
+            break 
+        end 
+    end 
+     
+    cz1 = first_el_centroid[3] 
+    for i = 2:length(data) 
+        cz_i = data[i]["centroid"][3] 
+        if abs(cz_i - cz1) > 1e-6  
+            dz = abs(cz_i - cz1) 
+            break 
+        end 
+    end 
+ 
+    if dx < 1e-6 
+        dx_final = LX 
+        NX = 1 
+    else 
+        NX = round(Int, LX / dx) 
+        dx_final = LX / NX  
+    end 
+ 
+    if dy < 1e-6 
+        dy_final = LY 
+        NY = 1 
+    else 
+        NY = round(Int, LY / dy) 
+        dy_final = LY / NY 
+    end 
+     
+    if dz < 1e-6 
+        dz_final = LZ 
+        NZ = 1 
+    else 
+        NZ = round(Int, LZ / dz) 
+        dz_final = LZ / NZ 
+    end 
+ 
+    inferred_n_total_el = NX * NY * NZ 
+ 
+    if inferred_n_total_el != length(data) 
+        @warn "Inferred element count ($inferred_n_total_el) does not match file count ($(length(data))). Using file count for array size." 
+    end 
+     
+    println("   Inferred mesh dimensions: $(NX) x $(NY) x $(NZ) elements.") 
+    println("   Element size (dx, dy, dz): $(@sprintf("%.6f", dx_final)), $(@sprintf("%.6f", dy_final)), $(@sprintf("%.6f", dz_final))") 
+ 
+    for elem in data 
+        density = elem["young_modulus"] 
+        density_field[elem["element_id"]] = Float32(density) 
+    end 
+     
+    sorted_densities = [density_field[i] for i in 1:length(data)] 
+ 
+    x_coords = collect(Float32, range(0.0f0, stop=LX, length=NX + 1)) 
+    y_coords = collect(Float32, range(0.0f0, stop=LY, length=NY + 1)) 
+    z_coords = collect(Float32, range(0.0f0, stop=LZ, length=NZ + 1)) 
+ 
+    return sorted_densities, NX, NY, NZ, x_coords, y_coords, z_coords 
+end 
+ 
+function prepare_density_grid(densities::Vector{Float32}, NX::Int, NY::Int, NZ::Int) 
+    println("2. Preparing 3D density grid...") 
+     
+    node_densities = zeros(Float32, NX + 1, NY + 1, NZ + 1) 
+     
+    cell_densities = reshape(densities, NX, NY, NZ) 
+     
+    for k in 1:NZ 
+        for j in 1:NY 
+            for i in 1:NX 
+                node_densities[i, j, k] = cell_densities[i, j, k] 
+            end 
+        end 
+    end 
+ 
+    println("   Node grid of dimensions $(NX+1)x$(NY+1)x$(NZ+1) created from cell data.") 
+    return node_densities 
+end 
+ 
+function run_marching_cubes(density_grid::Array{Float32, 3}, x_coords::Vector{Float32}, y_coords::Vector{Float32}, z_coords::Vector{Float32}) 
+    println("3. Running Marching Cubes (Isosurface Extraction) at threshold $(ISOSURFACE_DENSITY)...") 
+     
+    mc_struct = MC( 
+        density_grid,  
+        Int;  
+        normal_sign=1, 
+        x=x_coords,  
+        y=y_coords,  
+        z=z_coords 
+    ) 
+ 
+    march(mc_struct, ISOSURFACE_DENSITY) 
+ 
+    vertices = mc_struct.vertices 
+    triangles = mc_struct.triangles 
+     
+    num_vertices = length(vertices) 
+    num_faces = length(triangles) 
+     
+    @printf("   Surface extracted: %d vertices, %d faces.\n", num_vertices, num_faces) 
+     
+    return (vertices, triangles) 
+end 
+ 
+function export_to_stl(result::Tuple) 
+    vertices = result[1] 
+    faces = result[2] 
+     
+    println("4. Exporting surface to ASCII STL file: $STL_OUTPUT_FILE") 
+     
+    open(STL_OUTPUT_FILE, "w") do io 
+        write(io, "solid topopt_model\n") 
+         
+        for face in faces 
+            v1 = vertices[face[1]] 
+            v2 = vertices[face[2]] 
+            v3 = vertices[face[3]] 
+             
+            e1 = (v2[1]-v1[1], v2[2]-v1[2], v2[3]-v1[3]) 
+            e2 = (v3[1]-v1[1], v3[2]-v1[2], v3[3]-v1[3]) 
+             
+            nx = e1[2]*e2[3] - e1[3]*e2[2] 
+            ny = e1[3]*e2[1] - e1[1]*e2[3] 
+            nz = e1[1]*e2[2] - e1[2]*e2[1] 
+             
+            mag = sqrt(nx^2 + ny^2 + nz^2) 
+            if mag > 1e-12 
+                nx /= mag 
+                ny /= mag 
+                nz /= mag 
+            else 
+                nx, ny, nz = 0.0, 0.0, 0.0 
+            end 
+             
+            @printf(io, "  facet normal %e %e %e\n", nx, ny, nz) 
+            write(io, "    outer loop\n") 
+             
+            @printf(io, "      vertex %e %e %e\n", v1[1], v1[2], v1[3]) 
+            @printf(io, "      vertex %e %e %e\n", v2[1], v2[2], v2[3]) 
+            @printf(io, "      vertex %e %e %e\n", v3[1], v3[2], v3[3]) 
+             
+            write(io, "    endloop\n") 
+            write(io, "  endfacet\n") 
+        end 
+         
+        write(io, "endsolid topopt_model\n") 
+    end 
+     
+    println("   Export complete. The file is ready for your CAD/viewer software.") 
+end 
+ 
+ 
+function main_postprocess() 
+    try 
+        densities, NX, NY, NZ, x_coords, y_coords, z_coords = infer_mesh_and_load_density(JSON_FILE_PATH) 
+         
+        density_grid = prepare_density_grid(densities, NX, NY, NZ) 
+         
+        surface_result = run_marching_cubes(density_grid, x_coords, y_coords, z_coords) 
+         
+        export_to_stl(surface_result) 
+         
+    catch e 
+        @error "An error occurred during post-processing." exception=(e, catch_backtrace()) 
+    end 
+end 
+ 
+main_postprocess() 
+"// # FILE: .\src\IO\Postprocessing.jl";
+// # FILE: .\Postprocessing.jl";
+
+module Postprocessing
+
+using JSON, Printf
+using ..Mesh
+using ..ExportVTK
+import MarchingCubes: MC, march
+
+export export_iteration_results, export_smooth_watertight_stl
+
+"""
+    get_smooth_nodal_densities(density, elements, nNodes)
+"""
+function get_smooth_nodal_densities(density::Vector{Float32}, elements::Matrix{Int}, nNodes::Int)
+    node_sums = zeros(Float32, nNodes)
+    node_counts = zeros(Int, nNodes)
+    
+    nElem = length(density)
+    nElem_mesh = size(elements, 1)
+
+    
+    if nElem != nElem_mesh
+        @warn "Postprocessing mismatch: Density vector ($nElem) != Mesh elements ($nElem_mesh). Skipping smoothing."
+        return zeros(Float32, nNodes)
+    end
+    
+    @inbounds for e in 1:nElem
+        rho = density[e]
+        for i in 1:8
+            node_idx = elements[e, i]
+            node_sums[node_idx] += rho
+            node_counts[node_idx] += 1
+        end
+    end
+    
+    nodal_density = zeros(Float32, nNodes)
+    @inbounds for i in 1:nNodes
+        if node_counts[i] > 0
+            nodal_density[i] = node_sums[i] / Float32(node_counts[i])
+        else
+            nodal_density[i] = 0.0f0
+        end
+    end
+    
+    return nodal_density
+end
+
+"""
+    trilinear_interpolate(vals, xd, yd, zd)
+"""
+@inline function trilinear_interpolate(vals, xd::Float32, yd::Float32, zd::Float32)
+    c00 = vals[1]*(1f0-xd) + vals[2]*xd
+    c01 = vals[4]*(1f0-xd) + vals[3]*xd
+    c10 = vals[5]*(1f0-xd) + vals[6]*xd
+    c11 = vals[8]*(1f0-xd) + vals[7]*xd
+
+    c0 = c00*(1f0-yd) + c01*yd
+    c1 = c10*(1f0-yd) + c11*yd
+
+    return c0*(1f0-zd) + c1*zd
+end
+
+"""
+    export_smooth_watertight_stl(density, geom, threshold, filename; subdivision_level=2)
+"""
+function export_smooth_watertight_stl(density::Vector{Float32}, geom, threshold::Float32, filename::String; subdivision_level::Int=2)
+    println("Generating smooth watertight STL (Subdivision: $subdivision_level)...")
+    
+    dir_path = dirname(filename)
+    if !isempty(dir_path) && !isdir(dir_path)
+        mkpath(dir_path)
+    end
+
+    NX, NY, NZ = geom.nElem_x, geom.nElem_y, geom.nElem_z
+    dx, dy, dz = geom.dx, geom.dy, geom.dz
+    
+    
+    nodes_coarse, elements_coarse, _ = Mesh.generate_mesh(NX, NY, NZ; dx=dx, dy=dy, dz=dz)
+    nNodes_coarse = size(nodes_coarse, 1)
+    
+    
+    if length(density) != size(elements_coarse, 1)
+        @warn "STL Generation Aborted: Density vector length ($(length(density))) does not match geometry dimensions ($NX x $NY x $NZ = $(size(elements_coarse, 1)))."
+        @warn "This usually happens during adaptive mesh refinement updates. Skipping this frame."
+        return
+    end
+    
+    
+    nodal_density_coarse = get_smooth_nodal_densities(density, elements_coarse, nNodes_coarse)
+
+    grid_coarse = reshape(nodal_density_coarse, (NX+1, NY+1, NZ+1))
+
+    sub_NX = NX * subdivision_level
+    sub_NY = NY * subdivision_level
+    sub_NZ = NZ * subdivision_level
+
+    pad = 1 
+    fine_dim_x = sub_NX + 1 + 2*pad
+    fine_dim_y = sub_NY + 1 + 2*pad
+    fine_dim_z = sub_NZ + 1 + 2*pad
+
+    sub_dx = dx / Float32(subdivision_level)
+    sub_dy = dy / Float32(subdivision_level)
+    sub_dz = dz / Float32(subdivision_level)
+
+    fine_grid = zeros(Float32, fine_dim_x, fine_dim_y, fine_dim_z)
+    
+    x_coords = collect(Float32, range(-pad*sub_dx, step=sub_dx, length=fine_dim_x))
+    y_coords = collect(Float32, range(-pad*sub_dy, step=sub_dy, length=fine_dim_y))
+    z_coords = collect(Float32, range(-pad*sub_dz, step=sub_dz, length=fine_dim_z))
+
+    println("  Interpolating coarse field to fine grid ($(fine_dim_x)x$(fine_dim_y)x$(fine_dim_z))...")
+    
+    Threads.@threads for k_f in (1+pad):(fine_dim_z-pad)
+        for j_f in (1+pad):(fine_dim_y-pad)
+            for i_f in (1+pad):(fine_dim_x-pad)
+                
+                ix = i_f - (1+pad)
+                iy = j_f - (1+pad)
+                iz = k_f - (1+pad)
+
+                idx_x = div(ix, subdivision_level)
+                idx_y = div(iy, subdivision_level)
+                idx_z = div(iz, subdivision_level)
+
+                if idx_x >= NX; idx_x = NX - 1; end
+                if idx_y >= NY; idx_y = NY - 1; end
+                if idx_z >= NZ; idx_z = NZ - 1; end
+
+                c_i = idx_x + 1
+                c_j = idx_y + 1
+                c_k = idx_z + 1
+
+                rem_x = ix - idx_x * subdivision_level
+                rem_y = iy - idx_y * subdivision_level
+                rem_z = iz - idx_z * subdivision_level
+                
+                xd = Float32(rem_x) / Float32(subdivision_level)
+                yd = Float32(rem_y) / Float32(subdivision_level)
+                zd = Float32(rem_z) / Float32(subdivision_level)
+
+                v1 = grid_coarse[c_i,   c_j,   c_k]
+                v2 = grid_coarse[c_i+1, c_j,   c_k]
+                v3 = grid_coarse[c_i+1, c_j+1, c_k]
+                v4 = grid_coarse[c_i,   c_j+1, c_k]
+                v5 = grid_coarse[c_i,   c_j,   c_k+1]
+                v6 = grid_coarse[c_i+1, c_j,   c_k+1]
+                v7 = grid_coarse[c_i+1, c_j+1, c_k+1]
+                v8 = grid_coarse[c_i,   c_j+1, c_k+1]
+
+                vals = (v1, v2, v3, v4, v5, v6, v7, v8)
+
+                val = trilinear_interpolate(vals, xd, yd, zd)
+                fine_grid[i_f, j_f, k_f] = val
+            end
+        end
+    end
+
+    mc_struct = MC(
+        fine_grid, 
+        Int; 
+        normal_sign=1,
+        x=x_coords, 
+        y=y_coords, 
+        z=z_coords
+    )
+
+    march(mc_struct, threshold)
+
+    vertices = mc_struct.vertices
+    faces = mc_struct.triangles
+    
+    num_vertices = length(vertices)
+    num_faces = length(faces)
+    
+    println("  Surface extracted: $num_vertices vertices, $num_faces triangles.")
+    
+    if num_faces == 0
+        @warn "No isosurface found at threshold $threshold. STL file will be empty/invalid."
+    end
+
+    println("  Writing Binary STL to $filename...")
+
+    try
+        open(filename, "w") do io
+            
+            header_str = "Binary STL generated by HEXA Topology Optimization"
+            header = rpad(header_str, 80, ' ')
+            write(io, header)
+            
+            write(io, UInt32(num_faces))
+            
+            for face in faces
+                v1 = vertices[face[1]]
+                v2 = vertices[face[2]]
+                v3 = vertices[face[3]]
+                
+                e1x, e1y, e1z = v2[1]-v1[1], v2[2]-v1[2], v2[3]-v1[3]
+                e2x, e2y, e2z = v3[1]-v1[1], v3[2]-v1[2], v3[3]-v1[3]
+                
+                nx = e1y*e2z - e1z*e2y
+                ny = e1z*e2x - e1x*e2z
+                nz = e1x*e2y - e1y*e2x
+                
+                mag = sqrt(nx*nx + ny*ny + nz*nz)
+                if mag > 1e-12
+                    nx /= mag; ny /= mag; nz /= mag
+                else
+                    nx = 0.0f0; ny = 0.0f0; nz = 0.0f0
+                end
+                
+                write(io, Float32(nx)); write(io, Float32(ny)); write(io, Float32(nz))
+                
+                write(io, Float32(v1[1])); write(io, Float32(v1[2])); write(io, Float32(v1[3]))
+                write(io, Float32(v2[1])); write(io, Float32(v2[2])); write(io, Float32(v2[3]))
+                write(io, Float32(v3[1])); write(io, Float32(v3[2])); write(io, Float32(v3[3]))
+                
+                write(io, UInt16(0))
+            end
+        end
+        println("  Successfully exported STL.")
+    catch e
+        @error "Failed to save STL file: $e"
+        println("Error details: ", e)
+    end
+end
+
+function export_iteration_results(iter::Int, 
+                                  base_name::String, 
+                                  RESULTS_DIR::String, 
+                                  nodes::Matrix{Float32}, 
+                                  elements::Matrix{Int}, 
+                                  U_full::Vector{Float32}, 
+                                  F::Vector{Float32}, 
+                                  bc_indicator::Matrix{Float32}, 
+                                  principal_field::Matrix{Float32}, 
+                                  vonmises_field::Vector{Float32}, 
+                                  full_stress_voigt::Matrix{Float32}, 
+                                  l1_stress_norm_field::Vector{Float32}, 
+                                  density::Vector{Float32}, 
+                                  E::Float32,
+                                  geom)
+      
+    println("Exporting results for iteration $(iter)...") 
+    iter_prefix = "iter_$(iter)_" 
+    nElem = size(elements, 1) 
+
+    json_filename = joinpath(RESULTS_DIR, "$(iter_prefix)$(base_name)_element_data.json") 
+    element_data = [] 
+    for e in 1:nElem 
+        centroid_coords = Mesh.element_centroid(e, nodes, elements) 
+        elem_info = Dict( 
+            "element_id" => e, 
+            "centroid" => centroid_coords, 
+            "young_modulus" => E * density[e], 
+            "von_mises_stress" => vonmises_field[e], 
+            "l1_stress_norm" => l1_stress_norm_field[e], 
+            "principal_stresses" => principal_field[:, e] 
+        ) 
+        push!(element_data, elem_info) 
+    end 
+      
+    try 
+        open(json_filename, "w") do f 
+            write(f, JSON.json(element_data, 2)) 
+        end 
+    catch err 
+        @error "Failed to write element JSON file: $err" 
+    end 
+
+    solution_filename = joinpath(RESULTS_DIR, "$(iter_prefix)$(base_name)_solution.vtu") 
+    ExportVTK.export_solution(nodes, elements, U_full, F, bc_indicator, 
+                              principal_field, vonmises_field, full_stress_voigt, 
+                              l1_stress_norm_field; 
+                              density=density, 
+                              scale=Float32(1.0),  
+                              filename=solution_filename) 
+      
+    stl_filename = joinpath(RESULTS_DIR, "$(iter_prefix)$(base_name)_isosurface.stl")
+    
+    
+    export_smooth_watertight_stl(density, geom, 0.3f0, stl_filename; subdivision_level=2)
+end 
+
+end
+"// # FILE: .\src\Mesh\Mesh.jl";
+module Mesh 
+ 
+export node_index, generate_mesh 
+
+ 
+using LinearAlgebra, Printf 
+ 
+""" 
+    node_index(i, j, k, nNodes_x, nNodes_y) 
+ 
+Converts 3D indices (i, j, k) into a linear node index (column‑major ordering). 
+""" 
+function node_index(i, j, k, nNodes_x, nNodes_y) 
+    return i + (j-1)*nNodes_x + (k-1)*nNodes_x*nNodes_y 
+end 
+ 
+""" 
+    generate_mesh(nElem_x, nElem_y, nElem_z; 
+                  dx=1.0f0, dy=1.0f0, dz=1.0f0) 
+ 
+Generates a structured (prismatic) hexahedral mesh. 
+""" 
+function generate_mesh(nElem_x::Int, nElem_y::Int, nElem_z::Int; 
+                       dx::Float32=Float32(1.0),  
+                       dy::Float32=Float32(1.0),  
+                       dz::Float32=Float32(1.0))  
+      
+    nNodes_x = nElem_x + 1 
+    nNodes_y = nElem_y + 1 
+    nNodes_z = nElem_z + 1 
+    dims = (nNodes_x, nNodes_y, nNodes_z) 
+        
+    nNodes = nNodes_x * nNodes_y * nNodes_z 
+    nodes = zeros(Float32, nNodes, 3) 
+    idx = 1 
+    for k in 1:nNodes_z, j in 1:nNodes_y, i in 1:nNodes_x 
+        nodes[idx, :] = [(i-1)*dx, (j-1)*dy, (k-1)*dz] 
+        idx += 1 
+    end 
+      
+    nElem = (nNodes_x - 1) * (nNodes_y - 1) * (nNodes_z - 1) 
+    elements = Matrix{Int}(undef, nElem, 8) 
+    elem_idx = 1 
+    for k in 1:(nNodes_z-1), j in 1:(nNodes_y-1), i in 1:(nNodes_x-1) 
+        n1 = node_index(i, j, k, nNodes_x, nNodes_y) 
+        n2 = node_index(i+1, j, k, nNodes_x, nNodes_y) 
+        n3 = node_index(i+1, j+1, k, nNodes_x, nNodes_y) 
+        n4 = node_index(i, j+1, k, nNodes_x, nNodes_y) 
+        n5 = node_index(i, j, k+1, nNodes_x, nNodes_y) 
+        n6 = node_index(i+1, j, k+1, nNodes_x, nNodes_y) 
+        n7 = node_index(i+1, j+1, k+1, nNodes_x, nNodes_y) 
+        n8 = node_index(i, j+1, k+1, nNodes_x, nNodes_y) 
+        elements[elem_idx, :] = [n1, n2, n3, n4, n5, n6, n7, n8] 
+        elem_idx += 1 
+    end 
+ 
+    println("Generated structured mesh: $(nElem) elements, $(nNodes) nodes.") 
+ 
+    return nodes, elements, dims 
+end 
+ 
+end
+"// # FILE: .\src\Mesh\MeshPruner.jl";
+// # FILE: .\MeshPruner.jl";
+module MeshPruner
+
+using LinearAlgebra
+using SparseArrays
+
+export prune_system, reconstruct_full_solution
+
+"""
+    prune_system(nodes, elements, density, threshold, bc_indicator, F)
+
+Removes elements with density < threshold. 
+Removes nodes that are no longer attached to any active element.
+Remaps Boundary Conditions and Forces to the new reduced indices.
+
+Returns a NamedTuple containing the reduced system and the mapping arrays.
+"""
+function prune_system(nodes::Matrix{Float32}, 
+                      elements::Matrix{Int}, 
+                      density::Vector{Float32}, 
+                      threshold::Float32, 
+                      bc_indicator::Matrix{Float32}, 
+                      F::Vector{Float32})
+
+    nElem = size(elements, 1)
+    nNodes = size(nodes, 1)
+
+    
+    
+    
+    active_mask = density .> threshold
+    active_element_indices = findall(active_mask)
+    nActiveElem = length(active_element_indices)
+
+    if nActiveElem == 0
+        error("MeshPruner: No active elements found (Threshold: $threshold). System is empty.")
+    end
+
+    
+    active_nodes_mask = falses(nNodes)
+    
+    
+    for e in active_element_indices
+        for i in 1:8
+            node_idx = elements[e, i]
+            active_nodes_mask[node_idx] = true
+        end
+    end
+
+    
+    
+    
+    old_to_new_node_map = zeros(Int, nNodes)
+    new_to_old_node_map = Int[]
+    
+    current_new_id = 1
+    for i in 1:nNodes
+        if active_nodes_mask[i]
+            old_to_new_node_map[i] = current_new_id
+            push!(new_to_old_node_map, i)
+            current_new_id += 1
+        end
+    end
+    
+    nActiveNodes = length(new_to_old_node_map)
+
+    
+    reduced_nodes = nodes[new_to_old_node_map, :]
+
+    
+    reduced_elements = Matrix{Int}(undef, nActiveElem, 8)
+    for (i, old_e_idx) in enumerate(active_element_indices)
+        for j in 1:8
+            old_node = elements[old_e_idx, j]
+            new_node = old_to_new_node_map[old_node]
+            reduced_elements[i, j] = new_node
+        end
+    end
+
+    
+    reduced_bc = bc_indicator[new_to_old_node_map, :]
+
+    
+    reduced_ndof = nActiveNodes * 3
+    reduced_F = zeros(Float32, reduced_ndof)
+    
+    
+    
+    for (new_idx, old_idx) in enumerate(new_to_old_node_map)
+        base_old = 3 * (old_idx - 1)
+        base_new = 3 * (new_idx - 1)
+        reduced_F[base_new+1] = F[base_old+1]
+        reduced_F[base_new+2] = F[base_old+2]
+        reduced_F[base_new+3] = F[base_old+3]
+    end
+
+    
+    reduced_density = density[active_element_indices]
+
+    return (
+        nodes = reduced_nodes,
+        elements = reduced_elements,
+        bc_indicator = reduced_bc,
+        F = reduced_F,
+        density = reduced_density,
+        old_to_new_node_map = old_to_new_node_map,
+        new_to_old_node_map = new_to_old_node_map,
+        active_element_indices = active_element_indices,
+        n_original_nodes = nNodes,
+        n_original_elems = nElem
+    )
+end
+
+"""
+    reconstruct_full_solution(u_reduced, new_to_old_node_map, n_full_nodes)
+
+Maps the displacement vector from the reduced system back to the full system size.
+Nodes that were removed (voids) will have 0.0 displacement.
+"""
+function reconstruct_full_solution(u_reduced::Vector{Float32}, 
+                                   new_to_old_node_map::Vector{Int}, 
+                                   n_full_nodes::Int)
+    
+    ndof_full = n_full_nodes * 3
+    u_full = zeros(Float32, ndof_full)
+
+    
+    for (new_node_idx, old_node_idx) in enumerate(new_to_old_node_map)
+        base_new = 3 * (new_node_idx - 1)
+        base_old = 3 * (old_node_idx - 1)
+
+        u_full[base_old+1] = u_reduced[base_new+1]
+        u_full[base_old+2] = u_reduced[base_new+2]
+        u_full[base_old+3] = u_reduced[base_new+3]
+    end
+
+    return u_full
+end
+
+end
+"// # FILE: .\src\Mesh\MeshRefiner.jl";
+// # FILE: .\MeshRefiner.jl";
+module MeshRefiner
+
+using LinearAlgebra
+using Printf
+using ..Mesh
+using ..Helpers
+
+export refine_mesh_and_fields
+
+"""
+    refine_mesh_and_fields(nodes, elements, density, current_dims, 
+                           target_active_count, domain_bounds)
+
+Generates a NEW mesh from scratch to match a target active element count.
+It does NOT subdivide existing elements. Instead, it calculates a new global
+dx, dy, dz and interpolates the old density field onto the new centroids.
+
+Returns: (new_nodes, new_elements, new_density, new_dims)
+"""
+function refine_mesh_and_fields(nodes::Matrix{Float32}, 
+                                elements::Matrix{Int}, 
+                                density::Vector{Float32}, 
+                                current_dims::Tuple{Int, Int, Int},
+                                target_active_count::Int,
+                                domain_bounds::NamedTuple) 
+
+    
+    
+    
+    
+    
+    n_total_old = length(density)
+    n_active_old = count(d -> d > 0.001f0, density)
+    active_ratio = max(0.01, n_active_old / n_total_old) 
+    
+    
+    required_total_elements = round(Int, target_active_count / active_ratio)
+    
+    # Safety clamp: Don't let it grow wildly beyond 5x the previous size in one step
+    required_total_elements = min(required_total_elements, n_total_old * 8)
+    required_total_elements = max(required_total_elements, n_total_old) # Don't shrink
+
+    println("\n[MeshRefiner] Re-meshing...")
+    println("  Target Active: $target_active_count")
+    println("  Active Ratio:  $(round(active_ratio*100, digits=1))%")
+    println("  New Total Est: $required_total_elements")
+
+    
+    len_x, len_y, len_z = domain_bounds.len_x, domain_bounds.len_y, domain_bounds.len_z
+    
+    
+    new_nx, new_ny, new_nz, new_dx, new_dy, new_dz, actual_count = 
+        Helpers.calculate_element_distribution(len_x, len_y, len_z, required_total_elements)
+        
+    
+    new_nodes, new_elements, new_dims = Mesh.generate_mesh(
+        new_nx, new_ny, new_nz;
+        dx=new_dx, dy=new_dy, dz=new_dz
+    )
+    
+    
+    min_pt = domain_bounds.min_pt
+    new_nodes[:, 1] .+= min_pt[1]
+    new_nodes[:, 2] .+= min_pt[2]
+    new_nodes[:, 3] .+= min_pt[3]
+    
+    println("  New Grid: $(new_nx)x$(new_ny)x$(new_nz) = $actual_count elements")
+    println("  New Resolution: $(new_dx) x $(new_dy) x $(new_dz)")
+
+    
+    
+    
+    
+    n_new_total = size(new_elements, 1)
+    new_density = zeros(Float32, n_new_total)
+    
+    
+    old_nx = current_dims[1] - 1
+    old_ny = current_dims[2] - 1
+    old_nz = current_dims[3] - 1
+    
+    
+    
+    
+    old_dx = len_x / old_nx
+    old_dy = len_y / old_ny
+    old_dz = len_z / old_nz
+
+    
+    
+    
+    Threads.@threads for e_new in 1:n_new_total
+        
+        
+        
+        
+        
+        iz = div(e_new - 1, new_nx * new_ny) + 1
+        rem_z = (e_new - 1) % (new_nx * new_ny)
+        iy = div(rem_z, new_nx) + 1
+        ix = rem_z % new_nx + 1
+        
+        
+        cx = (ix - 0.5f0) * new_dx
+        cy = (iy - 0.5f0) * new_dy
+        cz = (iz - 0.5f0) * new_dz
+        
+        
+        
+        old_ix = clamp(floor(Int, cx / old_dx) + 1, 1, old_nx)
+        old_iy = clamp(floor(Int, cy / old_dy) + 1, 1, old_ny)
+        old_iz = clamp(floor(Int, cz / old_dz) + 1, 1, old_nz)
+        
+        
+        old_linear = old_ix + (old_iy - 1)*old_nx + (old_iz - 1)*old_nx*old_ny
+        
+        
+        
+        new_density[e_new] = density[old_linear]
+    end
+    
+    return new_nodes, new_elements, new_density, new_dims
+end
+
+end
+"// # FILE: .\src\Mesh\MeshShapeProcessing.jl";
+module MeshShapeProcessing 
+ 
+export apply_geometric_modifiers!
+ 
+using LinearAlgebra 
+using Base.Threads
+using ..MeshUtilities    
+ 
+""" 
+    apply_geometric_modifiers!(density, nodes, elements, shapes, target_value)
+
+Iterates over elements and applies the `target_value` to the density field 
+if the element centroid is inside the defined shape.
+""" 
+function apply_geometric_modifiers!(density::Vector{Float32}, 
+                                    nodes::Matrix{Float32}, 
+                                    elements::Matrix{Int}, 
+                                    shapes::Vector{Any},
+                                    target_value::Float32)
+    
+    if isempty(shapes)
+        return
+    end
+
+    nElem = size(elements, 1)
+    
+    
+    Threads.@threads for e in 1:nElem
+        
+        centroid = MeshUtilities.element_centroid(e, nodes, elements)
+        
+        for shape in shapes
+            shape_type = lowercase(get(shape, "type", ""))
+            is_inside = false
+
+            if shape_type == "sphere"
+                if haskey(shape, "center") && haskey(shape, "diameter")
+                    center = tuple(Float32.(shape["center"])...)
+                    diam   = Float32(shape["diameter"])
+                    is_inside = MeshUtilities.inside_sphere(centroid, center, diam)
+                end
+            elseif shape_type == "box"
+                if haskey(shape, "center") && haskey(shape, "side")
+                    center = tuple(Float32.(shape["center"])...)
+                    side   = Float32(shape["side"])
+                    is_inside = MeshUtilities.inside_box(centroid, center, side)
+                end
+            end
+
+            if is_inside
+                density[e] = target_value
+                
+                # (Last shape in list wins if they overlap, or use 'break' to prioritize first)
+                break 
+            end
+        end
+    end
+end 
+ 
+end
+"// # FILE: .\src\Mesh\MeshUtilities.jl";
+module MeshUtilities 
+ 
+export inside_sphere, inside_box, element_centroid,
+       check_element_quality, fix_inverted_elements!, 
+       calculate_element_quality 
+ 
+using LinearAlgebra 
+ 
+""" 
+    element_centroid(e, nodes, elements) 
+ 
+Computes the centroid of element `e` given the node coordinates. 
+""" 
+function element_centroid(e::Int, nodes::Matrix{Float32}, elements::Matrix{Int}) 
+    conn = view(elements, e, :) 
+    
+    @inbounds begin
+        c1 = nodes[conn[1], :]
+        c2 = nodes[conn[2], :]
+        c3 = nodes[conn[3], :]
+        c4 = nodes[conn[4], :]
+        c5 = nodes[conn[5], :]
+        c6 = nodes[conn[6], :]
+        c7 = nodes[conn[7], :]
+        c8 = nodes[conn[8], :]
+    end
+    return (c1 .+ c2 .+ c3 .+ c4 .+ c5 .+ c6 .+ c7 .+ c8) ./ 8.0f0  
+end 
+
+""" 
+    inside_sphere(pt, center, diam) 
+Return true if point `pt` is inside a sphere of diameter `diam` at `center`. 
+""" 
+function inside_sphere(pt::AbstractVector, center::Tuple{Float32,Float32,Float32}, diam::Float32) 
+    r = diam / 2f0 
+    return norm(pt .- collect(center)) <= r 
+end 
+
+""" 
+    inside_box(pt, center, side) 
+Return true if point `pt` is inside a cube of side `side` centered at `center`. 
+""" 
+function inside_box(pt::AbstractVector, center::Tuple{Float32,Float32,Float32}, side::Float32) 
+    half = side / 2f0 
+    return abs(pt[1] - center[1]) <= half && 
+           abs(pt[2] - center[2]) <= half && 
+           abs(pt[3] - center[3]) <= half 
+end 
+ 
+""" 
+    check_element_quality(nodes, elements) -> poor_elements 
+Mark which elements are degenerate, etc. (Placeholder for future expansion)
+""" 
+function check_element_quality(nodes::Matrix{Float32}, elements::Matrix{Int}) 
+    nElem = size(elements,1) 
+    poor_elements = Int[] 
+    
+    return poor_elements 
+end 
+ 
+""" 
+    fix_inverted_elements!(nodes, elements) -> (fixed_count, warning_count) 
+Swap node ordering to fix negative Jacobians. (Placeholder)
+""" 
+function fix_inverted_elements!(nodes::Matrix{Float32}, elements::Matrix{Int}) 
+    return (0, 0) 
+end 
+ 
+""" 
+    calculate_element_quality(nodes, elements) 
+Returns (aspect_ratios, min_jacobians) (Placeholder)
+""" 
+function calculate_element_quality(nodes::Matrix{Float32}, elements::Matrix{Int}) 
+    nElem = size(elements, 1)
+    return zeros(Float32, nElem), zeros(Float32, nElem) 
+end 
+ 
+end
+"// # FILE: .\src\Optimization\TopOpt.jl";
+
+module TopologyOptimization 
+
+using LinearAlgebra
+using SparseArrays
+using Printf  
+using Statistics 
+using SuiteSparse 
+using ..Element
+using ..Mesh
+
+export update_density!, reset_filter_cache!
+
+# Cache to prevent re-factorizing the Helmholtz matrix if the mesh/radius hasn't changed
+mutable struct FilterCache
+    is_initialized::Bool
+    radius::Float32
+    
+    K_filter::SuiteSparse.CHOLMOD.Factor{Float64} 
+    M_lumped::Vector{Float32}                       
+    
+    FilterCache() = new(false, 0.0f0)
+end
+
+const GLOBAL_FILTER_CACHE = FilterCache()
+
+function reset_filter_cache!()
+    GLOBAL_FILTER_CACHE.is_initialized = false
+end
+
+
+
+
+function assemble_helmholtz_system(nElem_x, nElem_y, nElem_z, dx, dy, dz, R)
+    nNodes = (nElem_x + 1) * (nElem_y + 1) * (nElem_z + 1)
+    nElem = nElem_x * nElem_y * nElem_z
+    
+    Ke_local, Me_local = Element.get_scalar_canonical_matrices(dx, dy, dz)
+    
+    entries_per_elem = 64 
+    total_entries = nElem * entries_per_elem
+    
+    I_vec = Vector{Int32}(undef, total_entries)
+    J_vec = Vector{Int32}(undef, total_entries)
+    
+    V_vec = Vector{Float64}(undef, total_entries)
+    
+    idx_counter = 0
+    
+    nx, ny, nz = nElem_x + 1, nElem_y + 1, nElem_z + 1
+    
+    Re_local = (R^2) .* Ke_local .+ Me_local
+    
+    for k in 1:nElem_z, j in 1:nElem_y, i in 1:nElem_x
+        n1 = i       + (j-1)*nx       + (k-1)*nx*ny
+        n2 = (i+1) + (j-1)*nx       + (k-1)*nx*ny
+        n3 = (i+1) + j*nx           + (k-1)*nx*ny
+        n4 = i       + j*nx           + (k-1)*nx*ny
+        n5 = i       + (j-1)*nx       + k*nx*ny
+        n6 = (i+1) + (j-1)*nx       + k*nx*ny
+        n7 = (i+1) + j*nx           + k*nx*ny
+        n8 = i       + j*nx           + k*nx*ny
+        
+        nodes = [n1, n2, n3, n4, n5, n6, n7, n8]
+        
+        for r in 1:8
+            row = nodes[r]
+            for c in 1:8
+                col = nodes[c]
+                idx_counter += 1
+                I_vec[idx_counter] = row
+                J_vec[idx_counter] = col
+                
+                V_vec[idx_counter] = Float64(Re_local[r, c])
+            end
+        end
+    end
+    
+    K_global = sparse(I_vec, J_vec, V_vec, nNodes, nNodes)
+    
+    # println("  [Topology] Factorizing Helmholtz filter matrix (Float64)...")
+    
+    # This prevents the "factorization construction failed" error
+    n = size(K_global, 1)
+    K_global = K_global + sparse(1:n, 1:n, fill(1e-9, n), n, n)
+    
+    return cholesky(K_global)
+end
+
+function apply_helmholtz_filter(field_elem::Vector{Float32}, F_fact, 
+                                nElem_x, nElem_y, nElem_z, 
+                                dx, dy, dz)
+    
+    nx, ny = nElem_x + 1, nElem_y + 1
+    nNodes = (nElem_x + 1) * (nElem_y + 1) * (nElem_z + 1)
+    
+    elem_vol = dx * dy * dz
+    nodal_weight = elem_vol / 8.0f0
+    
+    RHS = zeros(Float64, nNodes)
+    
+    idx_e = 1
+    for k in 1:nElem_z, j in 1:nElem_y, i in 1:nElem_x
+        val = Float64(field_elem[idx_e] * nodal_weight)
+        
+        n1 = i       + (j-1)*nx       + (k-1)*nx*ny
+        n2 = (i+1) + (j-1)*nx       + (k-1)*nx*ny
+        n3 = (i+1) + j*nx           + (k-1)*nx*ny
+        n4 = i       + j*nx           + (k-1)*nx*ny
+        n5 = i       + (j-1)*nx       + k*nx*ny
+        n6 = (i+1) + (j-1)*nx       + k*nx*ny
+        n7 = (i+1) + j*nx           + k*nx*ny
+        n8 = i       + j*nx           + k*nx*ny
+        
+        RHS[n1] += val; RHS[n2] += val; RHS[n3] += val; RHS[n4] += val;
+        RHS[n5] += val; RHS[n6] += val; RHS[n7] += val; RHS[n8] += val;
+        
+        idx_e += 1
+    end
+    
+    nodal_filtered = F_fact \ RHS
+    
+    filtered_elem = zeros(Float32, length(field_elem))
+    
+    idx_e = 1
+    for k in 1:nElem_z, j in 1:nElem_y, i in 1:nElem_x
+        n1 = i       + (j-1)*nx       + (k-1)*nx*ny
+        n2 = (i+1) + (j-1)*nx       + (k-1)*nx*ny
+        n3 = (i+1) + j*nx           + (k-1)*nx*ny
+        n4 = i       + j*nx           + (k-1)*nx*ny
+        n5 = i       + (j-1)*nx       + k*nx*ny
+        n6 = (i+1) + (j-1)*nx       + k*nx*ny
+        n7 = (i+1) + j*nx           + k*nx*ny
+        n8 = i       + j*nx           + k*nx*ny
+        
+        sum_nodes = nodal_filtered[n1] + nodal_filtered[n2] + nodal_filtered[n3] + nodal_filtered[n4] +
+                    nodal_filtered[n5] + nodal_filtered[n6] + nodal_filtered[n7] + nodal_filtered[n8]
+        
+        filtered_elem[idx_e] = Float32(sum_nodes / 8.0)
+        idx_e += 1
+    end
+    
+    return filtered_elem
+end
+
+function update_density!(density::Vector{Float32}, 
+                         l1_stress_norm_field::Vector{Float32}, 
+                         protected_elements_mask::BitVector, 
+                         E::Float32, 
+                         l1_stress_allowable::Float32, 
+                         iter::Int, 
+                         number_of_iterations::Int, 
+                         original_density::Vector{Float32}, 
+                         min_density::Float32,  
+                         max_density::Float32, 
+                         config::Dict,
+                         is_annealing::Bool=false) 
+
+    nElem = length(density)
+    max_change = 0.0f0 
+    
+    opt_params = config["optimization_parameters"]
+    geom_params = config["geometry"]
+
+    R_init_perc = Float32(get(opt_params, "filter_R_init_perc", 0.0f0))
+    R_interm_perc = Float32(get(opt_params, "filter_R_interm_perc", 0.0f0))
+    R_final_perc = Float32(get(opt_params, "filter_R_final_perc", 0.0f0))
+    R_interm_iter_perc = Float32(get(opt_params, "filter_R_interm_iter_perc", 50.0f0)) / 100.0f0
+    
+    R_manual = Float32(get(opt_params, "filter_radius", 0.0f0))
+    R_length = Float32(R_manual) 
+    
+    if R_init_perc > 1e-6
+        max_domain_dim = geom_params["max_domain_dim"]
+        R_init_length = R_init_perc / 100.0f0 * max_domain_dim
+        R_interm_length = R_interm_perc / 100.0f0 * max_domain_dim
+        R_final_length = R_final_perc / 100.0f0 * max_domain_dim
+
+        iter_interm = max(1, round(Int, R_interm_iter_perc * number_of_iterations))
+        
+        calc_iter = min(iter, number_of_iterations)
+
+        if calc_iter <= iter_interm
+            if iter_interm > 1
+                t = (calc_iter - 1) / (iter_interm - 1)
+                R_length = R_init_length * (1 - t) + R_interm_length * t
+            else
+                R_length = R_init_length
+            end
+        else 
+            if number_of_iterations > iter_interm
+                t = (calc_iter - iter_interm) / (number_of_iterations - iter_interm)
+                R_length = R_interm_length * (1 - t) + R_final_length * t
+            else
+                R_length = R_interm_length 
+            end
+        end
+        
+        R_length = R_length / 2.5f0
+    end
+    
+    filtered_l1_stress = l1_stress_norm_field
+    
+    if R_length > 1e-4
+        nElem_x = Int(geom_params["nElem_x_computed"]) 
+        nElem_y = Int(geom_params["nElem_y_computed"])
+        nElem_z = Int(geom_params["nElem_z_computed"])
+        dx = Float32(geom_params["dx_computed"])
+        dy = Float32(geom_params["dy_computed"])
+        dz = Float32(geom_params["dz_computed"])
+
+        if !GLOBAL_FILTER_CACHE.is_initialized || abs(GLOBAL_FILTER_CACHE.radius - R_length) > 1e-5
+            fact = assemble_helmholtz_system(nElem_x, nElem_y, nElem_z, dx, dy, dz, R_length)
+            GLOBAL_FILTER_CACHE.K_filter = fact
+            GLOBAL_FILTER_CACHE.radius = R_length
+            GLOBAL_FILTER_CACHE.is_initialized = true
+        end
+        
+        filtered_l1_stress = apply_helmholtz_filter(l1_stress_norm_field, 
+                                                    GLOBAL_FILTER_CACHE.K_filter, 
+                                                    nElem_x, nElem_y, nElem_z, 
+                                                    dx, dy, dz)
+    end
+    
+    for e in 1:nElem
+        if !protected_elements_mask[e] 
+            current_l1_stress = filtered_l1_stress[e]
+            
+            new_density_value = (current_l1_stress / l1_stress_allowable) / E
+            
+            old_val = density[e]
+            new_val = clamp(new_density_value, min_density, max_density)
+            
+            density[e] = new_val
+            
+            diff = abs(new_val - old_val)
+            if diff > max_change
+                max_change = diff
+            end
+        end
+    end
+    
+    current_threshold = 0.0f0
+    if iter > number_of_iterations
+        current_threshold = 0.95f0
+    else
+        progress = Float32(iter) / Float32(number_of_iterations)
+        current_threshold = Float32(0.95) * progress
+    end
+    
+    num_removed = 0
+    for e in 1:nElem
+        if !protected_elements_mask[e]
+            if density[e] < current_threshold
+                density[e] = min_density 
+                num_removed += 1
+            end
+        end
+    end
+    
+    for e in 1:nElem
+        if protected_elements_mask[e]
+            density[e] = original_density[e]
+        end
+    end
+    
+    return max_change, R_length, current_threshold
+end
+
+end
+"// # FILE: .\src\Solvers\CPUSolver.jl";
+module CPUSolver
+
+using LinearAlgebra, SparseArrays, Base.Threads, Printf
+using ..Element
+
+export MatrixFreeSystem, solve_system_cpu
+
+struct MatrixFreeSystem{T}
+    nodes::Matrix{T}
+    elements::Matrix{Int}
+    E::T
+    nu::T
+    bc_indicator::Matrix{T}
+    free_dofs::Vector{Int}
+    constrained_dofs::Vector{Int}
+    density::Vector{T}
+    min_stiffness_threshold::T 
+    
+    canonical_ke::Matrix{T}
+end
+
+
+"""
+    MatrixFreeSystem(...)
+"""
+function MatrixFreeSystem(nodes::Matrix{T}, elements::Matrix{Int}, E::T, nu::T,
+                          bc_indicator::Matrix{T}, density::Vector{T}=nothing,
+                          min_stiffness_threshold::T=Float32(1.0e-3)) where T
+                            
+    nElem = size(elements, 1)
+    if density === nothing; density = ones(T, nElem); end
+
+    nNodes = size(nodes, 1)
+    ndof   = nNodes * 3
+    constrained = falses(ndof)
+    @inbounds for i in 1:nNodes
+        if bc_indicator[i,1]>0; constrained[3*(i-1)+1]=true; end
+        if bc_indicator[i,2]>0; constrained[3*(i-1)+2]=true; end
+        if bc_indicator[i,3]>0; constrained[3*(i-1)+3]=true; end
+    end
+
+    free_dofs        = findall(!, constrained)
+    constrained_dofs = findall(x->x, constrained)
+
+    
+    
+    n1, n2, n4, n5 = nodes[elements[1,1], :], nodes[elements[1,2], :], nodes[elements[1,4], :], nodes[elements[1,5], :]
+    dx, dy, dz = norm(n2-n1), norm(n4-n1), norm(n5-n1)
+    canonical_ke = Element.get_canonical_stiffness(dx, dy, dz, nu)
+
+    return MatrixFreeSystem(nodes, elements, E, nu, bc_indicator,
+                            free_dofs, constrained_dofs, density,
+                            min_stiffness_threshold, canonical_ke) 
+end
+
+"""
+    apply_stiffness(system, x)
+
+Matrix-free multiplication K*x using canonical stiffness.
+"""
+function apply_stiffness(system::MatrixFreeSystem{T}, x::Vector{T}) where T
+    nNodes = size(system.nodes, 1)
+    ndof   = nNodes * 3
+    nElem  = size(system.elements, 1)
+
+    result = zeros(T, ndof)
+    result_local = [zeros(T, ndof) for _ in 1:Threads.nthreads()]
+    
+    Ke_base = system.canonical_ke
+
+    @threads for e in 1:nElem
+        
+        
+        dens = system.density[e]
+        if dens < system.min_stiffness_threshold
+            continue
+        end
+        
+        tid  = Threads.threadid()
+        conn = view(system.elements, e, :)
+        
+        
+        factor = system.E * dens
+
+        
+        u_elem = zeros(T, 24)
+        for i in 1:8
+            node_id = conn[i]
+            base = 3*(node_id-1)
+            u_elem[3*(i-1)+1] = x[base+1]
+            u_elem[3*(i-1)+2] = x[base+2]
+            u_elem[3*(i-1)+3] = x[base+3]
+        end
+
+        
+        f_elem = (Ke_base * u_elem) .* factor
+
+        
+        for i in 1:8
+            node_id = conn[i]
+            base = 3*(node_id-1)
+            result_local[tid][base+1] += f_elem[3*(i-1)+1]
+            result_local[tid][base+2] += f_elem[3*(i-1)+2]
+            result_local[tid][base+3] += f_elem[3*(i-1)+3]
+        end
+    end
+
+    for r in result_local
+        result .+= r
+    end
+    return result
+end
+
+function apply_system(system::MatrixFreeSystem{T}, x::Vector{T}) where T
+    return apply_stiffness(system, x)
+end
+
+function apply_system_free_dofs(system::MatrixFreeSystem{T}, x_free::Vector{T}) where T
+    nNodes = size(system.nodes, 1)
+    ndof   = nNodes * 3
+    x_full = zeros(T, ndof)
+    x_full[system.free_dofs] = x_free
+    result_full = apply_system(system, x_full)
+    return result_full[system.free_dofs]
+end
+
+
+"""
+    compute_diagonal_preconditioner(system)
+"""
+function compute_diagonal_preconditioner(system::MatrixFreeSystem{T}) where T
+    nNodes = size(system.nodes, 1)
+    ndof   = nNodes*3
+    nElem  = size(system.elements, 1)
+    
+    diag_vec = zeros(T, ndof)
+    diag_local = [zeros(T, ndof) for _ in 1:Threads.nthreads()]
+    
+    Ke_base = system.canonical_ke
+
+    @threads for e in 1:nElem
+        dens = system.density[e]
+        if dens < system.min_stiffness_threshold
+            continue
+        end
+        
+        tid  = Threads.threadid()
+        conn = view(system.elements, e, :)
+        factor = system.E * dens
+
+        for i in 1:8
+            node_id = conn[i]
+            base_dof = 3*(i-1)
+            
+            diag_val_x = Ke_base[base_dof+1, base_dof+1] * factor
+            diag_val_y = Ke_base[base_dof+2, base_dof+2] * factor
+            diag_val_z = Ke_base[base_dof+3, base_dof+3] * factor
+            
+            idx = 3*(node_id-1)
+            diag_local[tid][idx+1] += diag_val_x
+            diag_local[tid][idx+2] += diag_val_y
+            diag_local[tid][idx+3] += diag_val_z
+        end
+    end
+
+    for d in diag_local
+        diag_vec .+= d
+    end
+    return diag_vec
+end
+
+
+function matrix_free_cg_solve(system::MatrixFreeSystem{T}, f::Vector{T};
+                              max_iter=1000, tol=1e-6, use_precond=true,
+                              shift_factor::T=Float32(1.0e-6)) where T  
+    f_free = f[system.free_dofs]
+    n_free = length(system.free_dofs)
+    x_free = zeros(T, n_free)
+
+    diag_full = compute_diagonal_preconditioner(system)
+    diag_free = diag_full[system.free_dofs]
+
+    shift = T(0.0)
+    try
+        max_diag = maximum(diag_free)
+        shift = shift_factor * max_diag
+        println("CPUSolver: Applying diagonal shift: $shift (Factor: $shift_factor)")
+    catch e
+        @warn "Could not calculate diagonal shift: $e"
+    end
+    
+    r = copy(f_free)
+    
+    
+    diag_free[diag_free .<= shift] .= shift
+    
+    z = use_precond ? r ./ diag_free : copy(r)
+    p = copy(z)
+    rz_old = dot(r, z)
+
+    println("Starting matrix-free CG solve with $(n_free) unknowns...")
+    total_time = 0.0
+    
+    norm_f = norm(f_free)
+    if norm_f == 0
+        return zeros(T, length(f))
+    end
+
+    for iter in 1:max_iter
+        iter_start = time()
+        
+        Ap = apply_system_free_dofs(system, p) .+ (shift .* p)
+        
+        alpha = rz_old / dot(p, Ap)
+        x_free .+= alpha .* p
+        r .-= alpha .* Ap
+        
+        res_norm = norm(r) / norm_f
+        total_time += (time() - iter_start)
+
+        if res_norm < tol
+            println("CG converged in $iter iterations, residual = $res_norm, total time = $total_time sec")
+            break
+        end
+
+        diag_free[diag_free .<= shift] .= shift
+        z = use_precond ? r ./ diag_free : copy(r)
+        
+        rz_new = dot(r, z)
+        beta = rz_new / rz_old
+        p .= z .+ beta .* p
+        rz_old = rz_new
+    end
+
+    x_full = zeros(T, length(f))
+    x_full[system.free_dofs] = x_free
+    return x_full
+end
+
+function solve_system_cpu(nodes::Matrix{T}, elements::Matrix{Int}, E::T, nu::T,
+                          bc_indicator::Matrix{T}, f::Vector{T};
+                          max_iter=1000, tol=1e-6, use_precond=true,
+                          density::Vector{T}=nothing,
+                          shift_factor::T=Float32(1.0e-6),
+                          min_stiffness_threshold::T=Float32(1.0e-3)) where T   
+                            
+    system = MatrixFreeSystem(nodes, elements, E, nu, bc_indicator, density, min_stiffness_threshold)
+    
+    solve_start = time()
+    solution = matrix_free_cg_solve(system, f, max_iter=max_iter, tol=tol, 
+                                    use_precond=use_precond, shift_factor=shift_factor)
+    solve_end = time()
+    @printf("Total solution time (matrix-free CPU): %.6f sec\n", solve_end - solve_start)
+    return solution
+end
+
+end
+"// # FILE: .\src\Solvers\DirectSolver.jl";
+module DirectSolver
+
+using LinearAlgebra, SparseArrays, Base.Threads, Printf
+using ..Element
+using ..Boundary
+using ..Mesh
+
+export solve_system
+
+"""
+    assemble_global_stiffness_parallel_optimized(nodes, elements, E, nu, density, min_stiffness_threshold)
+
+Pre-allocating assembler for CPU Direct solver.
+"""
+function assemble_global_stiffness_parallel_optimized(nodes::Matrix{Float32},
+                                                      elements::Matrix{Int},
+                                                      E::Float32,
+                                                      nu::Float32,
+                                                      density::Vector{Float32},
+                                                      min_stiffness_threshold::Float32) 
+                                                     
+    nElem = size(elements, 1)
+    ndof = size(nodes, 1) * 3
+
+    
+    active_indices = findall(d -> d >= min_stiffness_threshold, density)
+    nActive = length(active_indices)
+    
+    if nActive == 0; error("No active elements."); end
+
+    
+    n1, n2, n4, n5 = nodes[elements[1,1], :], nodes[elements[1,2], :], nodes[elements[1,4], :], nodes[elements[1,5], :]
+    dx, dy, dz = norm(n2-n1), norm(n4-n1), norm(n5-n1)
+    Ke_base = Element.get_canonical_stiffness(dx, dy, dz, nu)
+
+    
+    entries_per_elem = 576
+    total_entries = nActive * entries_per_elem
+    I_vec = Vector{Int32}(undef, total_entries)
+    J_vec = Vector{Int32}(undef, total_entries)
+    V_vec = Vector{Float32}(undef, total_entries)
+
+    
+    Threads.@threads for t_idx in 1:length(active_indices)
+        e = active_indices[t_idx]
+        offset = (t_idx - 1) * entries_per_elem
+        factor = E * density[e]
+        conn = view(elements, e, :)
+        
+        cnt = 0
+        @inbounds for i in 1:8
+            row_idx = 3*(conn[i]-1)
+            for r in 1:3
+                g_row = row_idx + r
+                for j in 1:8
+                    col_idx = 3*(conn[j]-1)
+                    for c in 1:3
+                        g_col = col_idx + c
+                        cnt += 1
+                        
+                        I_vec[offset+cnt] = Int32(g_row)
+                        J_vec[offset+cnt] = Int32(g_col)
+                        V_vec[offset+cnt] = Ke_base[3*(i-1)+r, 3*(j-1)+c] * factor
+                    end
+                end
+            end
+        end
+    end
+
+    K_global = sparse(I_vec, J_vec, V_vec, ndof, ndof)
+    
+    return (K_global + K_global') / 2.0f0
+end
+
+"""
+    solve_system(...)
+"""
+function solve_system(nodes::Matrix{T}, elements::Matrix{Int}, E::T, nu::T,
+                      bc_indicator::Matrix{T}, f::Vector{T};
+                      density::Vector{T}=nothing,
+                      shift_factor::T=Float32(1.0e-6),
+                      min_stiffness_threshold::T=Float32(1.0e-3)) where T    
+                        
+    nElem = size(elements,1)
+    if density === nothing
+        density = ones(T, nElem)
+    end
+
+    nNodes = size(nodes, 1)
+    ndof   = nNodes * 3
+
+    constrained = falses(ndof)
+    for i in 1:nNodes
+        if bc_indicator[i,1]>0; constrained[3*(i-1)+1]=true; end
+        if bc_indicator[i,2]>0; constrained[3*(i-1)+2]=true; end
+        if bc_indicator[i,3]>0; constrained[3*(i-1)+3]=true; end
+    end
+    free_dofs = findall(!, constrained)
+
+    
+    K_global = assemble_global_stiffness_parallel_optimized(nodes, elements, E, nu, density, min_stiffness_threshold)
+
+    K_reduced = K_global[free_dofs, free_dofs]
+    F_reduced = f[free_dofs]
+
+    try
+        max_diag = maximum(abs.(diag(K_reduced)))
+        shift = shift_factor * max_diag
+        println("DirectSolver: Applying diagonal shift: $shift (Factor: $shift_factor)")
+        K_reduced = K_reduced + shift * I
+    catch e
+        @warn "Could not apply diagonal shift: $e"
+    end
+    
+    println("Solving linear system via LU factorization (CPU Direct).")
+    U_reduced = K_reduced \ F_reduced
+
+    U_full = zeros(T, ndof)
+    U_full[free_dofs] = U_reduced
+
+    return U_full
+end
+
+end
+"// # FILE: .\src\Solvers\GPUSolver.jl";
+module GPUSolver
+
+using LinearAlgebra, Printf
+using CUDA
+using CUDA.CUSPARSE
+using Krylov, LinearOperators
+using ..Element
+
+export solve_system_gpu
+
+
+
+
+
+function print_section_header(title::String)
+    width = 80
+    println("\n" * "="^width)
+    padding = (width - length(title) - 2) ÷ 2
+    println(" "^padding * title)
+    println("="^width)
+end
+
+function get_free_dofs(bc_indicator::Matrix{T}) where T
+    nNodes = size(bc_indicator, 1)
+    ndof   = nNodes * 3
+    constrained = falses(ndof)
+    @inbounds for i in 1:nNodes
+        if bc_indicator[i,1] > 0; constrained[3*(i-1)+1] = true; end
+        if bc_indicator[i,2] > 0; constrained[3*(i-1)+2] = true; end
+        if bc_indicator[i,3] > 0; constrained[3*(i-1)+3] = true; end
+    end
+    return findall(!, constrained)
+end
+
+
+
+
+
+function setup_matrix_free_operator(nodes::Matrix{T}, elements::Matrix{Int}, 
+                                   E::T, nu::T, density::Vector{T}, 
+                                   min_stiffness_threshold::T) where T
+    
+    print_section_header("GPU SOLVER - MATRIX-FREE SETUP")
+    
+    setup_start = time()
+    
+    nElem = size(elements, 1)
+    nNodes = size(nodes, 1)
+    ndof = nNodes * 3
+
+    
+    active_mask = density .>= min_stiffness_threshold
+    active_indices = findall(active_mask)
+    nActive = length(active_indices)
+    
+    if nActive == 0
+        error("❌ No active elements found. Check density initialization or threshold.")
+    end
+
+    @printf("  Total elements:        %12d\n", nElem)
+    @printf("  Active elements:       %12d (%.1f%%)\n", nActive, 100.0 * nActive / nElem)
+    @printf("  Total DOFs:            %12d\n", ndof)
+    @printf("  Density threshold:     %12.6f\n", min_stiffness_threshold)
+    println()
+
+    
+    canonical_start = time()
+    n1 = nodes[elements[1,1], :]
+    n2 = nodes[elements[1,2], :] 
+    n4 = nodes[elements[1,4], :] 
+    n5 = nodes[elements[1,5], :] 
+    
+    dx = norm(n2 - n1)
+    dy = norm(n4 - n1)
+    dz = norm(n5 - n1)
+    
+    Ke_base = Element.get_canonical_stiffness(dx, dy, dz, nu)
+    canonical_time = time() - canonical_start
+    
+    @printf("  Element size:          %.6f × %.6f × %.6f m\n", dx, dy, dz)
+    @printf("  Canonical K computed:  %.3f ms\n", canonical_time * 1000)
+    println()
+
+    
+    active_elements = elements[active_indices, :]
+    element_factors = E .* density[active_indices]
+    
+    
+    sparse_mem = nActive * 576 * (4 + 4 + sizeof(T)) / 1024^2
+    mf_mem = (nActive * 8 * 4 + nActive * sizeof(T) + 24*24*sizeof(T)) / 1024^2
+    
+    @printf("  Memory (sparse):       %12.2f MB\n", sparse_mem)
+    @printf("  Memory (matrix-free):  %12.2f MB\n", mf_mem)
+    @printf("  Memory saved:          %12.2f MB (%.1f%%)\n", 
+            sparse_mem - mf_mem, 100.0 * (sparse_mem - mf_mem) / sparse_mem)
+    println()
+    
+    setup_time = time() - setup_start
+    @printf("  TOTAL SETUP TIME:      %.3f s\n", setup_time)
+    println("="^80)
+    println()
+
+    return active_elements, Ke_base, element_factors, active_indices
+end
+
+
+
+
+
+"""
+Fully optimized matrix-free kernel with complete loop structure
+"""
+function matvec_kernel!(y::CuDeviceArray{T}, x::CuDeviceArray{T}, 
+                        elements::CuDeviceArray{Int32}, 
+                        Ke::CuDeviceArray{T},
+                        factors::CuDeviceArray{T},
+                        nActive::Int) where T
+    
+    e = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    
+    if e <= nActive
+        factor = factors[e]
+        
+        
+        @inbounds n1, n2, n3, n4 = elements[e,1], elements[e,2], elements[e,3], elements[e,4]
+        @inbounds n5, n6, n7, n8 = elements[e,5], elements[e,6], elements[e,7], elements[e,8]
+        
+        
+        @inbounds begin
+            x1 = x[3*(n1-1)+1]; x2 = x[3*(n1-1)+2]; x3 = x[3*(n1-1)+3]
+            x4 = x[3*(n2-1)+1]; x5 = x[3*(n2-1)+2]; x6 = x[3*(n2-1)+3]
+            x7 = x[3*(n3-1)+1]; x8 = x[3*(n3-1)+2]; x9 = x[3*(n3-1)+3]
+            x10 = x[3*(n4-1)+1]; x11 = x[3*(n4-1)+2]; x12 = x[3*(n4-1)+3]
+            x13 = x[3*(n5-1)+1]; x14 = x[3*(n5-1)+2]; x15 = x[3*(n5-1)+3]
+            x16 = x[3*(n6-1)+1]; x17 = x[3*(n6-1)+2]; x18 = x[3*(n6-1)+3]
+            x19 = x[3*(n7-1)+1]; x20 = x[3*(n7-1)+2]; x21 = x[3*(n7-1)+3]
+            x22 = x[3*(n8-1)+1]; x23 = x[3*(n8-1)+2]; x24 = x[3*(n8-1)+3]
+        end
+        
+        
+        
+        @inbounds for i in 1:24
+            y_i = T(0.0)
+            
+            
+            y_i += Ke[i, 1] * x1 + Ke[i, 2] * x2 + Ke[i, 3] * x3
+            y_i += Ke[i, 4] * x4 + Ke[i, 5] * x5 + Ke[i, 6] * x6
+            y_i += Ke[i, 7] * x7 + Ke[i, 8] * x8 + Ke[i, 9] * x9
+            y_i += Ke[i, 10] * x10 + Ke[i, 11] * x11 + Ke[i, 12] * x12
+            y_i += Ke[i, 13] * x13 + Ke[i, 14] * x14 + Ke[i, 15] * x15
+            y_i += Ke[i, 16] * x16 + Ke[i, 17] * x17 + Ke[i, 18] * x18
+            y_i += Ke[i, 19] * x19 + Ke[i, 20] * x20 + Ke[i, 21] * x21
+            y_i += Ke[i, 22] * x22 + Ke[i, 23] * x23 + Ke[i, 24] * x24
+            
+            
+            node_idx = (i - 1) ÷ 3 + 1
+            dof_local = (i - 1) % 3 + 1
+            
+            node = (node_idx == 1 ? n1 : node_idx == 2 ? n2 : node_idx == 3 ? n3 : 
+                    node_idx == 4 ? n4 : node_idx == 5 ? n5 : node_idx == 6 ? n6 : 
+                    node_idx == 7 ? n7 : n8)
+            
+            global_dof = 3 * (node - 1) + dof_local
+            
+            
+            CUDA.atomic_add!(pointer(y, global_dof), factor * y_i)
+        end
+    end
+    
+    return nothing
+end
+
+function apply_matrix_free_operator!(y::CuVector{T}, x::CuVector{T},
+                                    elements_gpu::CuMatrix{Int32},
+                                    Ke_gpu::CuMatrix{T},
+                                    factors_gpu::CuVector{T},
+                                    nActive::Int) where T
+    
+    fill!(y, T(0.0))
+    
+    threads_per_block = 256
+    num_blocks = cld(nActive, threads_per_block)
+    
+    @cuda threads=threads_per_block blocks=num_blocks matvec_kernel!(
+        y, x, elements_gpu, Ke_gpu, factors_gpu, nActive
+    )
+    
+    CUDA.synchronize()
+    
+    return nothing
+end
+
+
+
+
+
+function expand_kernel!(x_full::CuDeviceArray{T}, x_free::CuDeviceArray{T}, 
+                        free_to_full::CuDeviceArray{Int32}, n_free::Int) where T
+    idx = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    if idx <= n_free
+        @inbounds x_full[free_to_full[idx]] = x_free[idx]
+    end
+    return nothing
+end
+
+function contract_kernel!(x_free::CuDeviceArray{T}, x_full::CuDeviceArray{T},
+                         free_to_full::CuDeviceArray{Int32}, n_free::Int) where T
+    idx = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    if idx <= n_free
+        @inbounds x_free[idx] = x_full[free_to_full[idx]]
+    end
+    return nothing
+end
+
+
+
+
+
+function gpu_matrix_free_cg_solve(nodes::Matrix{T}, elements::Matrix{Int}, E::T, nu::T,
+                                  bc_indicator::Matrix{T}, f::Vector{T},
+                                  density::Vector{T};
+                                  max_iter=1000, tol=1e-6,
+                                  shift_factor::T=Float32(1.0e-6),
+                                  min_stiffness_threshold::T=Float32(1.0e-3),
+                                  config::Dict=Dict()) where T
+                             
+    total_solve_start = time()
+    
+    CUDA.allowscalar(false)
+    
+    
+    active_elements, Ke_base, element_factors, active_indices = setup_matrix_free_operator(
+        nodes, elements, E, nu, density, min_stiffness_threshold
+    )
+    
+    nActive = length(active_indices)
+    ndof = size(nodes, 1) * 3
+    free_dofs = get_free_dofs(bc_indicator)
+    n_free = length(free_dofs)
+    
+    current_iter = get(config, "current_iteration", 0)
+    if current_iter > 0
+        print_section_header("GPU SOLVER - MATRIX-FREE CG (ITERATION $current_iter)")
+    else
+        print_section_header("GPU SOLVER - MATRIX-FREE CG")
+    end
+    
+    @printf("  Free DOFs:             %12d / %d (%.1f%%)\n", 
+            n_free, ndof, 100.0 * n_free / ndof)
+    println()
+    
+    
+    free_to_full = Int32.(free_dofs)
+    
+    
+    diag_full = zeros(T, ndof)
+    @inbounds for t_idx in 1:nActive
+        e = active_indices[t_idx]
+        factor = E * density[e]
+        conn = view(active_elements, t_idx, :)
+        
+        for i in 1:8
+            node = conn[i]
+            local_base = 3 * (i - 1)
+            for dof in 1:3
+                global_dof = 3 * (node - 1) + dof
+                local_dof = local_base + dof
+                diag_full[global_dof] += Ke_base[local_dof, local_dof] * factor
+            end
+        end
+    end
+    
+    diag_free = diag_full[free_dofs]
+    
+    
+    max_diag = maximum(abs.(diag_free))
+    min_diag = minimum(abs.(diag_free))
+    shift = shift_factor * max_diag
+    
+    @printf("  Max diagonal:          %.6e\n", max_diag)
+    @printf("  Min diagonal:          %.6e\n", min_diag)
+    @printf("  Diagonal shift:        %.6e\n", shift)
+    println()
+
+    
+    elements_gpu = CuArray{Int32}(active_elements)
+    Ke_gpu = CuArray(Ke_base)
+    factors_gpu = CuArray(element_factors)
+    free_to_full_gpu = CuArray(free_to_full)
+    
+    b_gpu = CuVector(f[free_dofs])
+    x_gpu = CUDA.zeros(T, n_free)
+    
+    norm_b = norm(b_gpu)
+    @printf("  Force norm:            %.6e\n", norm_b)
+    
+    if norm_b == 0
+        println("\n⚠️  Zero force vector.")
+        return zeros(T, ndof)
+    end
+    println()
+
+    
+    println("  Starting CG iterations...")
+    println("  " * "-"^66)
+    @printf("  %8s %16s %16s %12s\n", "Iter", "Residual", "Rel. Residual", "Time (s)")
+    println("  " * "-"^66)
+    
+    r_gpu = CUDA.zeros(T, n_free)
+    p_gpu = CUDA.zeros(T, n_free)
+    Ap_free_gpu = CUDA.zeros(T, n_free)
+    x_full_gpu = CUDA.zeros(T, ndof)
+    Ap_full_gpu = CUDA.zeros(T, ndof)
+    
+    threads_map = 256
+    blocks_map = cld(n_free, threads_map)
+    
+    
+    r_gpu .= b_gpu
+    p_gpu .= r_gpu
+    rsold = dot(r_gpu, r_gpu)
+    
+    cg_start = time()
+    converged = false
+    final_iter = 0
+    print_interval = 1000
+
+    for iter in 1:max_iter
+        
+        fill!(x_full_gpu, T(0.0))
+        @cuda threads=threads_map blocks=blocks_map expand_kernel!(
+            x_full_gpu, p_gpu, free_to_full_gpu, n_free
+        )
+        
+        
+        apply_matrix_free_operator!(Ap_full_gpu, x_full_gpu, elements_gpu, Ke_gpu, 
+                                   factors_gpu, nActive)
+        
+        
+        @cuda threads=threads_map blocks=blocks_map contract_kernel!(
+            Ap_free_gpu, Ap_full_gpu, free_to_full_gpu, n_free
+        )
+        CUDA.synchronize()
+        
+        
+        Ap_free_gpu .+= shift .* p_gpu
+        
+        
+        denom = dot(p_gpu, Ap_free_gpu)
+        if abs(denom) < 1e-20
+            @warn "CG breakdown at iteration $iter"
+            break
+        end
+
+        alpha = rsold / denom
+        
+        
+        
+        
+        
+        
+        x_gpu .+= alpha .* p_gpu
+        
+        
+        r_gpu .-= alpha .* Ap_free_gpu
+        
+        rsnew = dot(r_gpu, r_gpu)
+        residual_norm = sqrt(rsnew) / norm_b
+        
+        should_print = (iter == 1) || (iter % print_interval == 0) || (residual_norm < tol)
+        if should_print
+            @printf("  %8d %16.8e %16.8e %12.3f\n", 
+                    iter, sqrt(rsnew), residual_norm, time() - cg_start)
+        end
+        
+        if residual_norm < tol
+            converged = true
+            final_iter = iter
+            break
+        end
+        
+        beta = rsnew / rsold
+        
+        
+        
+        
+        
+        p_gpu .= r_gpu .+ beta .* p_gpu
+        
+        rsold = rsnew
+        final_iter = iter
+    end
+    
+    println("  " * "-"^66)
+    println()
+    
+    if converged
+        @printf("  ✓ CONVERGED in %d iterations\n", final_iter)
+    else
+        @printf("  ⚠️  DID NOT CONVERGE\n")
+    end
+    
+    @printf("  CG time:                %.3f s\n", time() - cg_start)
+    @printf("  TOTAL TIME:             %.3f s\n", time() - total_solve_start)
+    println("="^80)
+    println()
+    
+    
+    x_full = zeros(T, ndof)
+    x_full[free_dofs] = Array(x_gpu)
+    return x_full
+end
+
+
+
+
+
+function solve_system_gpu(nodes::Matrix{T}, elements::Matrix{Int}, E::T, nu::T,
+                          bc_indicator::Matrix{T}, f::Vector{T},
+                          density::Vector{T};
+                          max_iter=1000, tol=1e-6, 
+                          method=:native, solver=:cg, use_precond=true,
+                          shift_factor::T=Float32(1.0e-6),
+                          min_stiffness_threshold::T=Float32(1.0e-3),
+                          config::Dict=Dict()) where T
+                            
+    @assert density !== nothing "You must provide a density array."
+    
+    if !CUDA.functional()
+        error("CUDA is not functional.")
+    end
+    
+    println("\n╔" * "═"^68 * "╗")
+    println("║" * " "^16 * "MATRIX-FREE GPU FEM SOLVER INITIATED" * " "^16 * "║")
+    println("╚" * "═"^68 * "╝")
+    println()
+    
+    free_mem, total_mem = CUDA.available_memory(), CUDA.total_memory()
+    @printf("  GPU Device:            %s\n", CUDA.name(CUDA.device()))
+    @printf("  Available memory:      %.2f GB / %.2f GB\n", 
+            free_mem / 1024^3, total_mem / 1024^3)
+    @printf("  Method:                Matrix-Free CG\n")
+    @printf("  Tolerance:             %.2e\n", tol)
+    @printf("  Max iterations:        %d\n", max_iter)
+    println()
+    
+    overall_start = time()
+    
+    solution = gpu_matrix_free_cg_solve(nodes, elements, E, nu, bc_indicator, f, density,
+                            max_iter=max_iter, tol=tol, shift_factor=shift_factor,
+                            min_stiffness_threshold=min_stiffness_threshold,
+                            config=config)
+    
+    println("╔" * "═"^68 * "╗")
+    println("║" * " "^16 * "MATRIX-FREE GPU SOLVER COMPLETED" * " "^20 * "║")
+    println("╠" * "═"^68 * "╣")
+    @printf("║  Total time: %48.3f s  ║\n", time() - overall_start)
+    println("╚" * "═"^68 * "╝")
+    println()
+    
+    return solution
+end
+
+end
+"// # FILE: .\src\Solvers\IterativeSolver.jl";
+module IterativeSolver 
+ 
+using LinearAlgebra, Printf 
+using ..CPUSolver  # Use parent module's CPUSolver 
+using ..GPUSolver  # Use parent module's GPUSolver 
+ 
+export solve_system_iterative 
+ 
+""" 
+    solve_system_iterative(nodes, elements, E, nu, bc_indicator, f; 
+                           solver_type=:matrix_free, max_iter=1000, tol=1e-6, 
+                           use_precond=true, density=nothing, 
+                           gpu_method=:native, krylov_solver=:cg, shift_factor=1e-6, 
+                           min_stiffness_threshold=1e-3) 
+ 
+High-level interface that dispatches between different solver types. 
+""" 
+function solve_system_iterative(nodes::Matrix{T}, elements::Matrix{Int}, E::T, nu::T, 
+                                 bc_indicator::Matrix{T}, f::Vector{T}; 
+                                 solver_type=:matrix_free, max_iter=1000, tol=1e-6, 
+                                 use_precond=true, density::Vector{T}=nothing, 
+                                 gpu_method=:native, krylov_solver=:cg, 
+                                 shift_factor::T=Float32(1.0e-6), 
+                                  
+                                 min_stiffness_threshold::T=Float32(1.0e-3)) where T   
+                                  
+ 
+    if solver_type == :matrix_free 
+        return CPUSolver.solve_system_cpu( 
+            nodes, elements, E, nu, bc_indicator, f; 
+            max_iter=max_iter, tol=tol, use_precond=use_precond,  
+            density=density, shift_factor=shift_factor, 
+             
+            min_stiffness_threshold=min_stiffness_threshold  
+             
+        ) 
+    elseif solver_type == :gpu 
+        if density === nothing 
+            error("You must provide a density array for GPU solver.") 
+        end 
+        return GPUSolver.solve_system_gpu( 
+            nodes, elements, E, nu, bc_indicator, f, density; 
+            max_iter=max_iter, tol=tol,  
+            method=gpu_method, solver=krylov_solver, use_precond=use_precond, 
+            shift_factor=shift_factor, 
+             
+            min_stiffness_threshold=min_stiffness_threshold 
+             
+        ) 
+    else 
+        error("Unknown solver type: $solver_type. Use :matrix_free or :gpu.") 
+    end 
+end 
+ 
+end 
+"// # FILE: .\src\Solvers\solver.jl";
+module Solver 
+ 
+using CUDA 
+using ..Helpers  
+using ..DirectSolver: solve_system as solve_system_direct 
+using ..IterativeSolver: solve_system_iterative 
+using ..MeshPruner 
+ 
+export solve_system 
+ 
+function choose_solver(nNodes, nElem, config) 
+    solver_params = config["solver_parameters"] 
+    configured_type = Symbol(lowercase(get(solver_params, "solver_type", "direct"))) 
+ 
+    if configured_type == :direct 
+        if nElem > 100_000 
+            @warn "Direct solver requested for large mesh ($(nElem) elements). Switching to Matrix-Free iterative." 
+            return :matrix_free 
+        end 
+        return :direct 
+    elseif configured_type == :gpu 
+        
+        if CUDA.functional() && Helpers.has_enough_gpu_memory(nNodes, nElem, true) 
+            return :gpu 
+        else 
+            @warn "Not enough GPU memory even for matrix-free. Falling back to CPU."
+            return :matrix_free 
+        end 
+    elseif configured_type == :matrix_free 
+        return :matrix_free 
+    else 
+        @warn "Unknown solver_type: $(configured_type). Defaulting to matrix_free." 
+        return :matrix_free 
+    end 
+end 
+ 
+""" 
+    solve_system(...) 
+ 
+Solves K*u = F. 
+If `prune_voids` is true, it creates a temporary reduced mesh of only active elements,
+solves that smaller system, and maps the results back to the full mesh size.
+""" 
+function solve_system(nodes::Matrix{Float32}, 
+                      elements::Matrix{Int}, 
+                      E::Float32, 
+                      nu::Float32, 
+                      bc_indicator::Matrix{Float32}, 
+                      F::Vector{Float32}; 
+                      density::Vector{Float32}=nothing, 
+                      config::Dict, 
+                      min_stiffness_threshold::Float32=Float32(1.0e-3),
+                      prune_voids::Bool=true) 
+                         
+    active_system = nothing
+     
+    if prune_voids && density !== nothing
+        
+        prune_threshold = min_stiffness_threshold * 1.01f0 
+         
+        nElem_total = size(elements, 1)
+         
+        nActive = count(d -> d > prune_threshold, density)
+         
+        # Only prune if we are removing > 1% of elements, otherwise overhead isn't worth it
+        if nActive < (nElem_total * 0.99)
+             
+            active_system = MeshPruner.prune_system(nodes, elements, density, prune_threshold, bc_indicator, F)
+             
+            solve_nodes = active_system.nodes
+            solve_elements = active_system.elements
+            solve_bc = active_system.bc_indicator
+            solve_F = active_system.F
+            solve_density = active_system.density
+        else
+            solve_nodes = nodes
+            solve_elements = elements
+            solve_bc = bc_indicator
+            solve_F = F
+            solve_density = density
+        end
+    else
+        solve_nodes = nodes
+        solve_elements = elements
+        solve_bc = bc_indicator
+        solve_F = F
+        solve_density = density
+    end
+
+    nNodes_solve = size(solve_nodes, 1) 
+    nElem_solve = size(solve_elements, 1) 
+      
+    solver_params = config["solver_parameters"] 
+    solver_type = choose_solver(nNodes_solve, nElem_solve, config) 
+      
+    tol = Float32(get(solver_params, "tolerance", 1.0e-6)) 
+    max_iter = Int(get(solver_params, "max_iterations", 1000)) 
+    shift_factor = Float32(get(solver_params, "diagonal_shift_factor", 1.0e-6)) 
+      
+    use_precond = true 
+      
+    U_solved = if solver_type == :direct 
+        solve_system_direct(solve_nodes, solve_elements, E, nu, solve_bc, solve_F; 
+                            density=solve_density, 
+                            shift_factor=shift_factor, 
+                            min_stiffness_threshold=min_stiffness_threshold) 
+                             
+    elseif solver_type == :gpu 
+        gpu_method = Symbol(lowercase(get(solver_params, "gpu_method", "krylov"))) 
+        krylov_solver = Symbol(lowercase(get(solver_params, "krylov_solver", "cg"))) 
+ 
+        solve_system_iterative(solve_nodes, solve_elements, E, nu, solve_bc, solve_F; 
+                             solver_type=:gpu, max_iter=max_iter, tol=tol, 
+                             density=solve_density, 
+                             use_precond=use_precond,  
+                             gpu_method=gpu_method, krylov_solver=krylov_solver, 
+                             shift_factor=shift_factor, 
+                             min_stiffness_threshold=min_stiffness_threshold) 
+                             
+    else  
+        solve_system_iterative(solve_nodes, solve_elements, E, nu, solve_bc, solve_F; 
+                             solver_type=:matrix_free, max_iter=max_iter, tol=tol, 
+                             use_precond=use_precond, 
+                             density=solve_density, 
+                             shift_factor=shift_factor, 
+                             min_stiffness_threshold=min_stiffness_threshold) 
+    end 
+ 
+    if active_system !== nothing
+        
+        U_full = MeshPruner.reconstruct_full_solution(U_solved, active_system.new_to_old_node_map, size(nodes, 1))
+        return U_full
+    else
+        return U_solved
+    end
+end 
+ 
+end
+"// # FILE: .\src\Utils\Diagnostics.jl";
+
+module Diagnostics
+
+using CUDA
+using Printf
+using Dates
+
+export log_status, check_memory, init_log_file, write_iteration_log
+
+const LOG_HEADER = """
+| Iter | Mesh Size | Total El | Active El | Radius | Cutoff | Compliance | Strain Energy | Avg L1 Stress | Vol Frac | Delta Rho | Refine? | Time (s) | Wall Time | VRAM |
+|------|-----------|----------|-----------|--------|--------|------------|---------------|---------------|----------|-----------|---------|----------|-----------|------|
+"""
+
+function log_status(msg::String)
+    timestamp = Dates.format(now(), "HH:MM:SS")
+    println("[$timestamp] $msg")
+    flush(stdout) 
+end
+
+function check_memory()
+    if CUDA.functional()
+        free_gpu, total_gpu = CUDA.available_memory(), CUDA.total_memory()
+        return free_gpu
+    end
+    return 0
+end
+
+function format_memory_str()
+    if CUDA.functional()
+        free_gpu, total_gpu = CUDA.available_memory(), CUDA.total_memory()
+        used_gb = (total_gpu - free_gpu) / 1024^3
+        return @sprintf("%.1fG", used_gb)
+    end
+    return "CPU"
+end
+
+function init_log_file(filename::String, config::Dict)
+    open(filename, "w") do io
+        write(io, "HEXA FEM TOPOLOGY OPTIMIZATION LOG\n")
+        write(io, "Start Date: $(now())\n")
+        write(io, "Config Geometry: $(config["geometry"])\n")
+        write(io, "="^180 * "\n")
+        write(io, LOG_HEADER)
+    end
+    println("\n" * LOG_HEADER) 
+end
+
+function write_iteration_log(filename::String, iter, mesh_dims_str, nTotal, nActive, 
+                             filter_R, threshold, compliance, strain_energy, avg_l1, 
+                             vol_frac, delta_rho, refine_status, time_sec)
+    
+    vram_str = format_memory_str()
+    wall_time = Dates.format(now(), "HH:MM:SS")
+    
+    line = @sprintf("| %4d | %9s | %8d | %9d | %6.3f | %6.3f | %10.3e | %13.3e | %13.3e | %8.4f | %8.2f%% | %7s | %8.2f | %9s | %4s |",
+                    iter, mesh_dims_str, nTotal, nActive, filter_R, threshold,
+                    compliance, strain_energy, avg_l1, vol_frac, 
+                    delta_rho*100, refine_status, time_sec, wall_time, vram_str)
+    
+    open(filename, "a") do io
+        println(io, line)
+    end
+    
+    println(line)
+    flush(stdout)
+end
+
+end
+"// # FILE: .\src\Utils\Helpers.jl";
+module Helpers 
+ 
+using CUDA 
+ 
+export expand_element_indices, nodes_from_location, parse_location_component 
+export calculate_element_distribution, has_enough_gpu_memory, clear_gpu_memory, get_max_feasible_elements
+
+function expand_element_indices(elem_inds, dims) 
+    nElem_x = dims[1] - 1 
+    nElem_y = dims[2] - 1 
+    nElem_z = dims[3] - 1 
+    inds = Vector{Vector{Int}}() 
+    for d in 1:3 
+        if (typeof(elem_inds[d]) == String && elem_inds[d] == ":") 
+            if d == 1 
+                push!(inds, collect(1:nElem_x)) 
+            elseif d == 2 
+                push!(inds, collect(1:nElem_y)) 
+            elseif d == 3 
+                push!(inds, collect(1:nElem_z)) 
+            end 
+        else 
+            push!(inds, [Int(elem_inds[d])]) 
+        end 
+    end 
+    result = Int[] 
+    for i in inds[1], j in inds[2], k in inds[3] 
+        eidx = i + (j-1)*nElem_x + (k-1)*nElem_x*nElem_y 
+        push!(result, eidx) 
+    end 
+    return result 
+end 
+ 
+function nodes_from_location(loc::Vector, dims) 
+    nNodes_x, nNodes_y, nNodes_z = dims 
+    ix = parse_location_component(loc[1], nNodes_x) 
+    iy = parse_location_component(loc[2], nNodes_y) 
+    iz = parse_location_component(loc[3], nNodes_z) 
+    nodes = Int[] 
+    for k in iz, j in iy, i in ix 
+        node = i + (j-1)*nNodes_x + (k-1)*nNodes_x*nNodes_y 
+        push!(nodes, node) 
+    end 
+    return nodes 
+end 
+ 
+function parse_location_component(val, nNodes::Int) 
+    if val == ":" 
+        return collect(1:nNodes) 
+    elseif isa(val, String) && endswith(val, "%") 
+        perc = parse(Float64, replace(val, "%"=>"")) / 100.0 
+        idx = round(Int, 1 + perc*(nNodes-1)) 
+        return [idx] 
+    elseif isa(val, Number) 
+        if 0.0 <= val <= 1.0 
+            idx = round(Int, 1 + val*(nNodes-1)) 
+            return [idx] 
+        else 
+            idx = clamp(round(Int, val), 1, nNodes) 
+            return [idx] 
+        end 
+    else 
+        error("Invalid location component: $val") 
+    end 
+end 
+ 
+function clear_gpu_memory() 
+    if !CUDA.functional() 
+        return (0, 0) 
+    end 
+    GC.gc() 
+    CUDA.reclaim() 
+ 
+    final_free, total = CUDA.available_memory(), CUDA.total_memory() 
+    return (final_free, total) 
+end 
+
+"""
+    estimate_bytes_per_element(matrix_free::Bool)
+
+Returns estimated bytes per element.
+- Matrix-Free: ~300 bytes (Connectivity + CG vectors + minimal overhead)
+- Matrix-Based: ~12,000 bytes (Sparse matrix entries + overhead)
+"""
+function estimate_bytes_per_element(matrix_free::Bool=true)
+    if matrix_free
+        
+        
+        
+        
+        
+        return 512 
+    else
+        
+        return 12000 
+    end
+end
+
+function get_max_feasible_elements(matrix_free::Bool=true)
+    if !CUDA.functional() 
+        return 200_000 
+    end 
+     
+    free_mem, total_mem = CUDA.available_memory(), CUDA.total_memory() 
+     
+    
+    usable_mem = free_mem * 0.80 
+     
+    bytes_per_elem = estimate_bytes_per_element(matrix_free)
+    max_elems = floor(Int, usable_mem / bytes_per_elem) 
+     
+    return max_elems
+end
+ 
+function estimate_gpu_memory_required(nNodes, nElem, matrix_free::Bool=true) 
+    ndof = nNodes * 3 
+    return nElem * estimate_bytes_per_element(matrix_free)
+end 
+ 
+function has_enough_gpu_memory(nNodes, nElem, matrix_free::Bool=true) 
+    if !CUDA.functional() 
+        return false 
+    end 
+    try 
+        free_mem, total_mem = CUDA.available_memory(), CUDA.total_memory() 
+        required_mem = estimate_gpu_memory_required(nNodes, nElem, matrix_free) 
+        usable_mem = free_mem * 0.95 
+        
+        if required_mem > usable_mem
+            println("  ⚠️ GPU Memory check failed: Needed $(required_mem/1024^3) GB, Available $(usable_mem/1024^3) GB")
+            return false
+        end
+        return true 
+    catch e 
+        println("Error checking GPU memory: $e") 
+        return false 
+    end 
+end 
+ 
+function calculate_element_distribution(length_x, length_y, length_z, target_elem_count) 
+    total_volume = length_x * length_y * length_z 
+      
+    ratio_x = length_x / cbrt(total_volume) 
+    ratio_y = length_y / cbrt(total_volume) 
+    ratio_z = length_z / cbrt(total_volume) 
+ 
+    base_count = cbrt(target_elem_count) 
+    nElem_x = max(1, round(Int, base_count * ratio_x)) 
+    nElem_y = max(1, round(Int, base_count * ratio_y)) 
+    nElem_z = max(1, round(Int, base_count * ratio_z)) 
+ 
+    dx = length_x / nElem_x 
+    dy = length_y / nElem_y 
+    dz = length_z / nElem_z 
+    actual_elem_count = nElem_x * nElem_y * nElem_z 
+    return nElem_x, nElem_y, nElem_z, Float32(dx), Float32(dy), Float32(dz), actual_elem_count 
+end 
+ 
+end

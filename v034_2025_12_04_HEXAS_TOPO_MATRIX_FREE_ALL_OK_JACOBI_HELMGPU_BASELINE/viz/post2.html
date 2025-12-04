@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Babylon.js FEM Visualizer (Thin Instances)</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #renderCanvas { width: 100%; height: 100%; touch-action: none; outline: none; }
+        #uiPanel { position: absolute; top: 1.5rem; left: 1.5rem; z-index: 10; max-height: 90vh; overflow-y: auto; }
+        /* Scrollbar styling */
+        #uiPanel::-webkit-scrollbar { width: 6px; }
+        #uiPanel::-webkit-scrollbar-thumb { background-color: rgba(156, 163, 175, 0.5); border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-900">
+
+    <canvas id="renderCanvas"></canvas>
+
+    <div id="uiPanel" class="bg-white/95 backdrop-blur-md p-5 rounded-xl shadow-2xl w-80 border border-white/20">
+        <div class="flex items-center justify-between mb-4">
+            <h1 class="text-lg font-bold text-slate-800 tracking-tight">FEM Visualizer <span class="text-blue-600">Pro</span></h1>
+            <div class="h-2 w-2 rounded-full bg-red-500" id="connectionStatus" title="Status"></div>
+        </div>
+        
+        <div class="space-y-4">
+            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">1. Load Data</label>
+                <input type="file" id="fileInput" accept=".json" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"/>
+            </div>
+
+            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 grid grid-cols-2 gap-y-2 text-xs">
+                <div class="text-slate-500 font-medium">Grid Size:</div>
+                <div id="statGridSize" class="text-slate-800 font-mono text-right">- x - x -</div>
+                <div class="text-slate-500 font-medium">Total Elements:</div>
+                <div id="statTotal" class="text-slate-800 font-mono text-right">0</div>
+                <div class="text-slate-500 font-medium">Visible:</div>
+                <div id="statVisible" class="text-blue-600 font-mono font-bold text-right">0</div>
+            </div>
+
+            <div>
+                <label for="dataFieldSelect" class="block text-xs font-medium text-slate-700 mb-1">Data Field</label>
+                <select id="dataFieldSelect" class="block w-full rounded-md border-slate-300 bg-slate-50 text-slate-700 text-sm p-2 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option disabled selected>Load file first...</option>
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-xs font-medium text-slate-700">Range Limits</label>
+                <div class="flex gap-2">
+                    <input type="text" id="minStress" value="0.00" class="w-1/2 rounded-md border-slate-300 bg-slate-50 text-xs p-2 font-mono shadow-sm focus:ring-blue-500">
+                    <input type="text" id="maxStress" value="1.00" class="w-1/2 rounded-md border-slate-300 bg-slate-50 text-xs p-2 font-mono shadow-sm focus:ring-blue-500">
+                </div>
+                <button id="applyButton" class="w-full bg-slate-800 text-white text-xs font-bold py-2 px-4 rounded-md hover:bg-slate-700 transition shadow-sm">Update Range</button>
+            </div>
+
+            <div>
+                <div class="flex justify-between items-center mb-1">
+                    <label for="densitySlider" class="text-xs font-medium text-slate-700">Density Threshold</label>
+                    <span id="densityValue" class="text-xs font-mono text-blue-600 bg-blue-50 px-1 rounded">0.00</span>
+                </div>
+                <input type="range" id="densitySlider" min="0" max="1" value="0" step="0.01" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+            </div>
+
+            <div class="border-t border-slate-200 pt-3 space-y-2">
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" id="shadowToggle" class="rounded text-blue-600 focus:ring-blue-500 h-4 w-4">
+                    <span class="text-sm text-slate-700">Enable Shadows</span>
+                </label>
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" id="groundToggle" checked class="rounded text-blue-600 focus:ring-blue-500 h-4 w-4">
+                    <span class="text-sm text-slate-700">Show Ground Plane</span>
+                </label>
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" id="gizmoToggle" class="rounded text-blue-600 focus:ring-blue-500 h-4 w-4">
+                    <span class="text-sm text-slate-700">Enable Ground Gizmo</span>
+                </label>
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" id="boundingBoxToggle" class="rounded text-blue-600 focus:ring-blue-500 h-4 w-4">
+                    <span class="text-sm text-slate-700">Show Bounding Box</span>
+                </label>
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="checkbox" id="backgroundToggle" class="rounded text-blue-600 focus:ring-blue-500 h-4 w-4">
+                    <span class="text-sm text-slate-700">White Background</span>
+                </label>
+            </div>
+            <div id="status" class="text-xs text-slate-400 text-center italic mt-2">Waiting for input...</div>
+        </div>
+    </div>
+
+    <script>
+        // --- UI & Globals ---
+        const canvas = document.getElementById('renderCanvas');
+        const fileInput = document.getElementById('fileInput');
+        const dataFieldSelect = document.getElementById('dataFieldSelect');
+        const minInput = document.getElementById('minStress');
+        const maxInput = document.getElementById('maxStress');
+        const applyButton = document.getElementById('applyButton');
+        const statusEl = document.getElementById('status');
+        const densitySlider = document.getElementById('densitySlider');
+        const densityValue = document.getElementById('densityValue');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const shadowToggle = document.getElementById('shadowToggle');
+        const groundToggle = document.getElementById('groundToggle');
+        const gizmoToggle = document.getElementById('gizmoToggle');
+        const boundingBoxToggle = document.getElementById('boundingBoxToggle');
+        const backgroundToggle = document.getElementById('backgroundToggle');
+
+        // Stats
+        const statGridSize = document.getElementById('statGridSize');
+        const statTotal = document.getElementById('statTotal');
+        const statVisible = document.getElementById('statVisible');
+
+        let engine, scene;
+        let allElementData = [];
+        let availableFields = [];
+        let currentDataField = 'von_mises_stress';
+        
+        // Data State
+        let currentMin = 0, currentMax = 1;
+        let currentDensityThreshold = 0.0;
+        let elementSize = { dx: 0.1, dy: 0.1, dz: 0.1 };
+
+        // Babylon Objects
+        let masterMesh = null; // The single mesh source for thin instances
+        let shadowGenerator = null;
+        let directionLight = null;
+        let axesRoot = null;
+        let advancedTexture = null;
+        let ground = null;
+        let gizmoManager = null;
+        let boundBox = null;
+
+        // Thin Instance Buffers (Float32Arrays)
+        let matrixBuffer = null; // Stores position/scale/rotation matrices (16 floats per instance)
+        let colorBuffer = null;  // Stores RGBA colors (4 floats per instance)
+
+        // --- Initialization ---
+        function initBabylon() {
+            engine = new BABYLON.Engine(canvas, true);
+            scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0.08, 0.08, 0.1, 1);
+
+            // Camera
+            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 4, Math.PI / 3, 20, BABYLON.Vector3.Zero(), scene);
+            camera.attachControl(canvas, true);
+            camera.wheelPrecision = 25;
+            camera.minZ = 0.05;
+
+            // Lighting (3-Point)
+            const hemiLight = new BABYLON.HemisphericLight("hemiLight", new BABYLON.Vector3(0, 1, 0), scene);
+            hemiLight.intensity = 0.6;
+            hemiLight.groundColor = new BABYLON.Color3(0.08, 0.08, 0.08);
+
+            directionLight = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-1, -2, -1), scene);
+            directionLight.position = new BABYLON.Vector3(20, 40, 20);
+            directionLight.intensity = 1.2;
+
+            const pointLight = new BABYLON.PointLight("pointLight", new BABYLON.Vector3(10, 10, -10), scene);
+            pointLight.intensity = 0.5;
+            pointLight.diffuse = new BABYLON.Color3(0.9, 0.95, 1);
+
+            // Ground
+            ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 300, height: 300}, scene);
+            const groundMat = new BABYLON.PBRMaterial("groundMat", scene);
+            
+            // Create checkerboard procedural texture with light blue tones using DynamicTexture
+            const textureSize = 1024
+            const checkerTexture = new BABYLON.DynamicTexture("checkerboard", textureSize, scene, false);
+            const ctx = checkerTexture.getContext();
+            
+            // Two shades of light blue
+            const color1 = "rgb(160, 200, 230)"; // Lighter blue
+            const color2 = "rgb(120, 170, 210)"; // Slightly darker blue
+            
+            const squareSize = textureSize / 8; // 8x8 grid of squares
+            
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    ctx.fillStyle = (i + j) % 2 === 0 ? color1 : color2;
+                    ctx.fillRect(i * squareSize, j * squareSize, squareSize, squareSize);
+                }
+            }
+            checkerTexture.update();
+            
+            // Set texture to repeat and wrap properly
+            checkerTexture.uScale = 5;
+            checkerTexture.vScale = 5;
+            checkerTexture.wrapU = BABYLON.Texture.WRAP_ADDRESSMODE;
+            checkerTexture.wrapV = BABYLON.Texture.WRAP_ADDRESSMODE;
+            
+            groundMat.albedoTexture = checkerTexture;
+            groundMat.metallic = 0.0;
+            groundMat.roughness = 0.7;
+            groundMat.specularIntensity = 0.3;
+            
+            ground.material = groundMat;
+            ground.receiveShadows = true;
+            ground.position.y = -0.05;
+
+            // Gizmo Manager
+            gizmoManager = new BABYLON.GizmoManager(scene);
+            gizmoManager.positionGizmoEnabled = true;
+            gizmoManager.rotationGizmoEnabled = false;
+            gizmoManager.scaleGizmoEnabled = false;
+            gizmoManager.boundingBoxGizmoEnabled = false;
+            gizmoManager.usePointerToAttachGizmos = false;
+
+            // GUI
+            advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+
+            engine.runRenderLoop(() => scene.render());
+            window.addEventListener('resize', () => engine.resize());
+            
+            connectionStatus.classList.remove('bg-red-500');
+            connectionStatus.classList.add('bg-green-500');
+        }
+
+        // --- Shadows ---
+        function updateShadows() {
+            if (!directionLight) return;
+            const enabled = shadowToggle.checked;
+            
+            if (enabled) {
+                if (!shadowGenerator) {
+                    shadowGenerator = new BABYLON.ShadowGenerator(2048, directionLight);
+                    shadowGenerator.useBlurExponentialShadowMap = true;
+                    shadowGenerator.blurKernel = 32;
+                    shadowGenerator.setDarkness(0.4);
+                }
+                // Add master mesh to shadow caster - thin instances automatically cast shadows
+                if (masterMesh) {
+                    shadowGenerator.addShadowCaster(masterMesh, true);
+                }
+                statusEl.textContent = "Shadows enabled";
+            } else {
+                if (shadowGenerator) {
+                    shadowGenerator.dispose();
+                    shadowGenerator = null;
+                }
+                statusEl.textContent = "Shadows disabled";
+            }
+        }
+        shadowToggle.addEventListener('change', updateShadows);
+
+        // --- Ground Toggle ---
+        groundToggle.addEventListener('change', (e) => {
+            if (ground) {
+                ground.isVisible = e.target.checked;
+                statusEl.textContent = e.target.checked ? "Ground visible" : "Ground hidden";
+            }
+        });
+
+        // --- Gizmo Toggle ---
+        gizmoToggle.addEventListener('change', (e) => {
+            if (gizmoManager && ground) {
+                if (e.target.checked) {
+                    gizmoManager.attachToMesh(ground);
+                    statusEl.textContent = "Ground gizmo enabled";
+                } else {
+                    gizmoManager.attachToMesh(null);
+                    statusEl.textContent = "Ground gizmo disabled";
+                }
+            }
+        });
+
+        // --- Bounding Box Toggle ---
+        boundingBoxToggle.addEventListener('change', (e) => {
+            if (boundBox) {
+                boundBox.isVisible = e.target.checked;
+                statusEl.textContent = e.target.checked ? "Bounding box visible" : "Bounding box hidden";
+            }
+        });
+
+        // --- Background Toggle ---
+        backgroundToggle.addEventListener('change', (e) => {
+            if (scene) {
+                if (e.target.checked) {
+                    scene.clearColor = new BABYLON.Color4(1, 1, 1, 1); // White
+                    statusEl.textContent = "White background";
+                } else {
+                    scene.clearColor = new BABYLON.Color4(0.08, 0.08, 0.1, 1); // Dark
+                    statusEl.textContent = "Dark background";
+                }
+            }
+        });
+
+        // --- File I/O ---
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            statusEl.textContent = 'Parsing JSON...';
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    allElementData = JSON.parse(e.target.result);
+                    if (!Array.isArray(allElementData) || allElementData.length === 0) throw new Error("Invalid Data");
+
+                    discoverFields();
+                    populateDropdown();
+                    
+                    densitySlider.value = 0;
+                    densityValue.textContent = "0.00";
+                    currentDensityThreshold = 0.0;
+                    
+                    processData();
+                    statusEl.textContent = 'Visualization ready.';
+                } catch (err) {
+                    console.error(err);
+                    statusEl.textContent = 'Error: ' + err.message;
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        function discoverFields() {
+            availableFields = [];
+            const first = allElementData[0];
+            for (let key in first) {
+                if (typeof first[key] === 'number' && key !== 'element_id') availableFields.push(key);
+                if (key === 'principal_stresses' && Array.isArray(first[key])) {
+                    availableFields.push('P1 (Max)', 'P2 (Mid)', 'P3 (Min)');
+                }
+            }
+            if (availableFields.includes('von_mises_stress')) currentDataField = 'von_mises_stress';
+            else if (availableFields.length > 0) currentDataField = availableFields[0];
+        }
+
+        function populateDropdown() {
+            dataFieldSelect.innerHTML = "";
+            availableFields.forEach(f => {
+                let opt = document.createElement('option');
+                opt.value = f;
+                opt.text = f.replace(/_/g, " ").toUpperCase();
+                dataFieldSelect.appendChild(opt);
+            });
+            dataFieldSelect.value = currentDataField;
+        }
+
+        function getVal(el, field) {
+            if (field === 'P1 (Max)') return el.principal_stresses ? el.principal_stresses[0] : 0;
+            if (field === 'P2 (Mid)') return el.principal_stresses ? el.principal_stresses[1] : 0;
+            if (field === 'P3 (Min)') return el.principal_stresses ? el.principal_stresses[2] : 0;
+            return el[field] || 0;
+        }
+
+        // --- Stats & Logic ---
+        function calculateStatsAndGrid() {
+            const xSet = new Set(), ySet = new Set(), zSet = new Set();
+            let minV = new BABYLON.Vector3(Infinity, Infinity, Infinity);
+            let maxV = new BABYLON.Vector3(-Infinity, -Infinity, -Infinity);
+            let dMin = Infinity, dMax = -Infinity;
+
+            allElementData.forEach(el => {
+                const c = el.centroid;
+                xSet.add(Math.round(c[0]*10000)/10000);
+                ySet.add(Math.round(c[1]*10000)/10000);
+                zSet.add(Math.round(c[2]*10000)/10000);
+
+                if (c[0] < minV.x) minV.x = c[0];
+                if (c[1] < minV.y) minV.y = c[1];
+                if (c[2] < minV.z) minV.z = c[2];
+                if (c[0] > maxV.x) maxV.x = c[0];
+                if (c[1] > maxV.y) maxV.y = c[1];
+                if (c[2] > maxV.z) maxV.z = c[2];
+
+                const ym = el.young_modulus || 0;
+                if (ym >= currentDensityThreshold) {
+                    const val = getVal(el, currentDataField);
+                    if (val < dMin) dMin = val;
+                    if (val > dMax) dMax = val;
+                }
+            });
+
+            if (minV.x === Infinity) minV = new BABYLON.Vector3.Zero();
+            if (maxV.x === -Infinity) maxV = new BABYLON.Vector3(1, 1, 1);
+
+            statGridSize.textContent = `${xSet.size} x ${ySet.size} x ${zSet.size}`;
+            statTotal.textContent = allElementData.length.toLocaleString();
+
+            if (dMin === Infinity) { dMin=0; dMax=1; }
+            currentMin = dMin; 
+            currentMax = dMax;
+            minInput.value = currentMin.toExponential(2);
+            maxInput.value = currentMax.toExponential(2);
+
+            return { minV, maxV };
+        }
+
+        function processData() {
+            if (allElementData.length === 0) return;
+
+            // Auto-detect Element Size
+            const xCoords = [...new Set(allElementData.map(e => e.centroid[0]))].sort((a,b)=>a-b);
+            let dx = 0.1;
+            if (xCoords.length > 1) {
+                let minGap = Infinity;
+                for(let i=1; i<xCoords.length; i++) {
+                    const diff = xCoords[i]-xCoords[i-1];
+                    if(diff > 0.00001 && diff < minGap) minGap = diff;
+                }
+                if(minGap !== Infinity) dx = minGap;
+            }
+            elementSize = { dx, dy: dx, dz: dx };
+
+            const bounds = calculateStatsAndGrid();
+            drawElements(bounds); // Initial Draw
+            createDimensionsAndAxes(bounds.minV, bounds.maxV);
+            
+            // Focus Camera - Center on bounding box and fit entire mesh
+            const padding = elementSize.dx / 2;
+            const realMin = bounds.minV.subtract(new BABYLON.Vector3(padding, padding, padding));
+            const realMax = bounds.maxV.add(new BABYLON.Vector3(padding, padding, padding));
+            const center = realMin.add(realMax).scale(0.5);
+            const size = realMax.subtract(realMin);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            
+            const camera = scene.activeCamera;
+            camera.setTarget(center);
+            // Increase radius to ensure entire mesh is visible (3.0 factor provides good margin)
+            camera.radius = maxDim * 3.0;
+            // Reset camera angles for consistent initial view
+            camera.alpha = -Math.PI / 4;
+            camera.beta = Math.PI / 3;
+
+            updateShadows();
+        }
+
+        // --- THIN INSTANCES CORE ---
+        function drawElements(bounds) {
+            if (masterMesh) masterMesh.dispose();
+
+            const count = allElementData.length;
+            
+            // 1. Create Source Mesh - FULL SIZE (no 0.95 reduction)
+            const pbrMat = new BABYLON.PBRMaterial("boxMat", scene);
+            pbrMat.roughness = 0.6;
+            pbrMat.metallic = 0.1;
+
+            masterMesh = BABYLON.MeshBuilder.CreateBox("master", {
+                width: elementSize.dx,
+                height: elementSize.dx, 
+                depth: elementSize.dx
+            }, scene);
+            masterMesh.material = pbrMat;
+            
+            // 2. Initialize Buffers
+            // Matrix Buffer: 16 floats per instance
+            matrixBuffer = new Float32Array(count * 16);
+            // Color Buffer: 4 floats (RGBA) per instance
+            colorBuffer = new Float32Array(count * 4);
+
+            // 3. Register Custom Color Attribute for Thin Instances
+            masterMesh.thinInstanceRegisterAttribute("color", 4);
+
+            // 4. Populate & Set Data
+            updateVisuals(); 
+        }
+
+        function updateVisuals() {
+            if (!masterMesh || !matrixBuffer) return;
+
+            let visibleCount = 0;
+            const range = currentMax - currentMin || 1;
+            
+            // Re-usable temporary matrix to avoid GC
+            const tempMatrix = BABYLON.Matrix.Identity();
+            const tempVector = new BABYLON.Vector3();
+
+            for (let i = 0; i < allElementData.length; i++) {
+                const el = allElementData[i];
+                const ym = el.young_modulus || 0;
+                
+                // --- VISIBILITY / MATRIX ---
+                // In Thin Instances, we "hide" by scaling to 0
+                let scale = 1.0;
+                if (ym < currentDensityThreshold) {
+                    scale = 0.0; 
+                } else {
+                    visibleCount++;
+                }
+
+                // Compose Matrix: Translation * Scale
+                // We manually fill the buffer for speed
+                // Matrix index offset = i * 16
+                const offset = i * 16;
+                
+                // Babylon matrices are column-major. 
+                // A simplified Translation + Uniform Scale matrix:
+                // Scale 0/1 on diagonal, Position on last row
+                
+                matrixBuffer[offset + 0] = scale;
+                matrixBuffer[offset + 1] = 0;
+                matrixBuffer[offset + 2] = 0;
+                matrixBuffer[offset + 3] = 0;
+
+                matrixBuffer[offset + 4] = 0;
+                matrixBuffer[offset + 5] = scale;
+                matrixBuffer[offset + 6] = 0;
+                matrixBuffer[offset + 7] = 0;
+
+                matrixBuffer[offset + 8] = 0;
+                matrixBuffer[offset + 9] = 0;
+                matrixBuffer[offset + 10] = scale;
+                matrixBuffer[offset + 11] = 0;
+
+                matrixBuffer[offset + 12] = el.centroid[0];
+                matrixBuffer[offset + 13] = el.centroid[1];
+                matrixBuffer[offset + 14] = el.centroid[2];
+                matrixBuffer[offset + 15] = 1;
+
+                // --- COLOR ---
+                if (scale > 0) {
+                    const val = getVal(el, currentDataField);
+                    let norm = (val - currentMin) / range;
+                    norm = Math.max(0, Math.min(1, norm));
+                    const hue = (1.0 - norm) * 240;
+                    
+                    // Convert HSV to RGB
+                    const c = BABYLON.Color3.FromHSV(hue, 0.9, 1.0);
+                    
+                    const cOffset = i * 4;
+                    colorBuffer[cOffset + 0] = c.r;
+                    colorBuffer[cOffset + 1] = c.g;
+                    colorBuffer[cOffset + 2] = c.b;
+                    colorBuffer[cOffset + 3] = 1.0; // Alpha
+                }
+            }
+
+            // 5. Update Buffers on GPU
+            masterMesh.thinInstanceSetBuffer("matrix", matrixBuffer, 16, true);
+            masterMesh.thinInstanceSetBuffer("color", colorBuffer, 4, true);
+
+            statVisible.textContent = visibleCount.toLocaleString();
+        }
+
+        // --- Dimensions ---
+        function createDimensionsAndAxes(min, max) {
+            if (axesRoot) axesRoot.dispose();
+            axesRoot = new BABYLON.TransformNode("axesRoot", scene);
+            // Clean up old GUI labels
+            advancedTexture.rootContainer.children.filter(c => c.name === "dimLabel").forEach(c => c.dispose());
+
+            const size = max.subtract(min);
+            const padding = elementSize.dx / 2;
+            const realMin = min.subtract(new BABYLON.Vector3(padding, padding, padding));
+            const realMax = max.add(new BABYLON.Vector3(padding, padding, padding));
+            const realSize = realMax.subtract(realMin);
+
+            // Bound Box - Wireframe
+            if (boundBox) boundBox.dispose();
+            
+            // Create wireframe edges manually using lines
+            const corners = [
+                realMin,
+                new BABYLON.Vector3(realMax.x, realMin.y, realMin.z),
+                new BABYLON.Vector3(realMax.x, realMin.y, realMax.z),
+                new BABYLON.Vector3(realMin.x, realMin.y, realMax.z),
+                new BABYLON.Vector3(realMin.x, realMax.y, realMin.z),
+                new BABYLON.Vector3(realMax.x, realMax.y, realMin.z),
+                realMax,
+                new BABYLON.Vector3(realMin.x, realMax.y, realMax.z)
+            ];
+            
+            const lines = [
+                // Bottom face
+                [corners[0], corners[1]],
+                [corners[1], corners[2]],
+                [corners[2], corners[3]],
+                [corners[3], corners[0]],
+                // Top face
+                [corners[4], corners[5]],
+                [corners[5], corners[6]],
+                [corners[6], corners[7]],
+                [corners[7], corners[4]],
+                // Vertical edges
+                [corners[0], corners[4]],
+                [corners[1], corners[5]],
+                [corners[2], corners[6]],
+                [corners[3], corners[7]]
+            ];
+            
+            boundBox = BABYLON.MeshBuilder.CreateLineSystem("boundBox", {
+                lines: lines
+            }, scene);
+            boundBox.color = new BABYLON.Color3(0.3, 0.3, 0.3);
+            boundBox.isVisible = boundingBoxToggle.checked;
+            boundBox.parent = axesRoot;
+
+            // Axes
+            const axisOrigin = realMin.subtract(new BABYLON.Vector3(realSize.x*0.1, 0, realSize.z*0.1));
+            const axisSize = Math.max(realSize.x, realSize.y, realSize.z) * 0.2;
+            
+            const makeAxis = (dir, col, label) => {
+                const line = BABYLON.MeshBuilder.CreateLines("axis"+label, { points: [axisOrigin, axisOrigin.add(dir.scale(axisSize))] }, scene);
+                line.color = col;
+                line.parent = axesRoot;
+                const labelMesh = BABYLON.MeshBuilder.CreatePlane("lbl"+label, {size: axisSize*0.3}, scene);
+                labelMesh.position = axisOrigin.add(dir.scale(axisSize * 1.1));
+                labelMesh.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+                labelMesh.parent = axesRoot;
+                const tex = BABYLON.GUI.AdvancedDynamicTexture.CreateForMesh(labelMesh);
+                const t = new BABYLON.GUI.TextBlock();
+                t.text = label; t.color = col.toHexString(); t.fontSize = 50; t.fontWeight = "bold";
+                tex.addControl(t);
+            };
+            makeAxis(new BABYLON.Vector3(1,0,0), BABYLON.Color3.Red(), "X");
+            makeAxis(new BABYLON.Vector3(0,1,0), BABYLON.Color3.Green(), "Y");
+            makeAxis(new BABYLON.Vector3(0,0,1), BABYLON.Color3.Blue(), "Z");
+
+            // No dimension labels
+        }
+
+        // --- Controls ---
+        dataFieldSelect.addEventListener('change', (e) => {
+            currentDataField = e.target.value;
+            calculateStatsAndGrid();
+            updateVisuals();
+        });
+        applyButton.addEventListener('click', () => {
+            currentMin = parseFloat(minInput.value);
+            currentMax = parseFloat(maxInput.value);
+            updateVisuals();
+        });
+        densitySlider.addEventListener('input', (e) => {
+            currentDensityThreshold = parseFloat(e.target.value);
+            densityValue.textContent = currentDensityThreshold.toFixed(2);
+            calculateStatsAndGrid();
+            updateVisuals();
+        });
+
+        window.addEventListener('DOMContentLoaded', initBabylon);
+    </script>
+</body>
+</html>
